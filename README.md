@@ -4,6 +4,8 @@ Lightweight, self-hosted Docker web application for browsing and playing TeslaUS
 
 Designed for **TrueNAS Scale + Portainer** and older hardware (Haswell-friendly).
 
+**Image:** `ghcr.io/adsouza98/teslacam-viewer:latest`
+
 ## Features
 
 - Clean dark-theme UI
@@ -13,11 +15,25 @@ Designed for **TrueNAS Scale + Portainer** and older hardware (Haswell-friendly)
 - Uses existing `thumb.png` when available, otherwise generates a thumbnail
 - Optional HTTP Basic Authentication
 - Read-only media mount
-- Fully works offline after the page loads (videos stream from your NAS)
+- Runs as TrueNAS apps user (`PUID`/`PGID` 568 by default)
+
+## Image (GHCR)
+
+Every push to `main` publishes to GitHub Container Registry:
+
+```
+ghcr.io/adsouza98/teslacam-viewer:latest
+```
+
+Because this repository is **private**, Portainer needs a GitHub PAT (`read:packages`) registered as a Docker registry:
+
+- Registry URL: `https://ghcr.io`
+- Username: your GitHub username
+- Password: PAT with `read:packages`
+
+You do **not** clone this repo onto TrueNAS. Add the image to `homelab-stacks` and let Portainer pull it.
 
 ## Folder Structure Expected
-
-The container expects one of these layouts under the mounted `/media`:
 
 ```
 /media/
@@ -30,73 +46,24 @@ The container expects one of these layouts under the mounted `/media`:
 │       ├── event.json          (optional)
 │       └── thumb.png           (optional)
 ├── SentryClips/
-│   └── ...
-└── RecentClips/                (optional)
-    └── ...
+└── RecentClips/
 ```
 
 Also works if the clips live under `/media/TeslaCam/...`.
 
-## Quick Start (Portainer)
+## Portainer environment variables
 
-1. Copy the whole `teslacam-viewer` folder to your TrueNAS (or clone/build from this project).
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PUID` | `568` | Process user ID (TrueNAS apps) |
+| `PGID` | `568` | Process group ID |
+| `TZ` | `America/Toronto` | Timezone |
+| `TESLACAM_MEDIA_PATH` | `/mnt/Starlink/Tesla/TeslaUSB` | Host path to TeslaUSB dataset |
+| `TESLACAM_AUTH_USER` | (empty) | Optional basic auth username |
+| `TESLACAM_AUTH_PASS` | (empty) | Optional basic auth password |
+| `TESLACAM_PORT` | `8000` | Host port |
 
-2. Edit `docker-compose.yml` and change the volume path:
-
-```yaml
-volumes:
-  - /mnt/Starlink/Tesla/TeslaUSB:/media:ro
-```
-
-3. In Portainer → **Stacks** → **Add stack** → paste the contents of `docker-compose.yml` (or upload the file).
-
-4. Deploy the stack.
-
-5. Open `http://<your-truenas-ip>:8000`
-
-### Optional Authentication
-
-Set environment variables:
-
-```yaml
-environment:
-  - AUTH_USER=andre
-  - AUTH_PASS=your-strong-password
-```
-
-Leave them empty to disable auth.
-
-## Build Locally (optional)
-
-```bash
-cd teslacam-viewer
-docker compose build
-docker compose up -d
-```
-
-## Configuration Environment Variables
-
-| Variable       | Default              | Description                          |
-|----------------|----------------------|--------------------------------------|
-| `MEDIA_PATH`   | `/media`             | Path inside container to clips       |
-| `CLIPS_ROOT`   | (empty)              | Optional subfolder (e.g. `TeslaCam`) |
-| `AUTH_USER`    | (empty)              | Basic auth username                  |
-| `AUTH_PASS`    | (empty)              | Basic auth password                  |
-| `TZ`           | `America/Toronto`    | Timezone                             |
-| `PORT`         | `8000`               | Internal port                        |
-
-## Keyboard Shortcuts
-
-- `Space` – Play / Pause all cameras
-- `←` / `→` – Seek ±5 seconds
-- `M` – Mute / Unmute
-
-## Notes for TrueNAS / Older Hardware
-
-- The image is based on `python:3.12-slim` + ffmpeg (only used for optional thumbnails).
-- All video streaming is handled by the browser; the backend just serves files.
-- Recommended to keep the media volume **read-only** (`:ro`).
-- You can limit CPU/memory in the compose file if desired.
+Leave auth empty to disable login.
 
 ## License
 
