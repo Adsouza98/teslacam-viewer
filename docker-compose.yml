@@ -1,0 +1,30 @@
+services:
+  teslacam-viewer:
+    build: .
+    image: teslacam-viewer:latest
+    container_name: teslacam-viewer
+    environment:
+      - MEDIA_PATH=/media
+      - TZ=America/Toronto
+      # Optional basic auth (leave empty to disable)
+      - AUTH_USER=
+      - AUTH_PASS=
+      # Optional: force root folder name if your structure differs
+      # - CLIPS_ROOT=TeslaCam
+    volumes:
+      # === CHANGE THIS to your TrueNAS TeslaUSB dataset ===
+      - /mnt/Starlink/Tesla/TeslaUSB:/media:ro
+      # Optional persistent thumbnail cache
+      - teslacam-cache:/cache
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    # For TrueNAS / older hardware - limit resources if desired
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: "2.0"
+    #       memory: 1G
+
+volumes:
+  teslacam-cache:
