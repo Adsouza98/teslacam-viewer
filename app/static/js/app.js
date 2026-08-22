@@ -6,7 +6,6 @@
 (() => {
   "use strict";
 
-  // State
   let events = [];
   let totalEvents = 0;
   let currentOffset = 0;
@@ -19,9 +18,10 @@
   let isPlaying = false;
   let isMuted = false;
   let duration = 0;
+  let lastTap = { time: 0, tile: null };
 
-  // DOM
   const $ = (sel) => document.querySelector(sel);
+  const appEl = $("#app");
   const eventList = $("#eventList");
   const eventCount = $("#eventCount");
   const statusEl = $("#status");
@@ -34,6 +34,7 @@
   const timeDisplay = $("#timeDisplay");
   const syncPlayBtn = $("#syncPlayBtn");
   const syncMuteBtn = $("#syncMuteBtn");
+  const backToListBtn = $("#backToListBtn");
 
   async function fetchEvents(offset = 0, append = false) {
     statusEl.textContent = "Loading…";
@@ -51,11 +52,7 @@
       const data = await res.json();
 
       totalEvents = data.total;
-      if (append) {
-        events = events.concat(data.events);
-      } else {
-        events = data.events;
-      }
+      events = append ? events.concat(data.events) : data.events;
       currentOffset = offset + data.events.length;
 
       renderEventList();
@@ -97,7 +94,7 @@
         return `
           <div class="event-card ${activeEvent?.id === e.id ? "active" : ""}" data-id="${e.id}">
             <img class="event-thumb" src="${thumbUrl}" alt="" loading="lazy"
-                 onerror="this.style.background='var(--bg-tertiary)';this.src='';" />
+                 onerror="this.style.background='var(--bg-tertiary)';this.removeAttribute('src');" />
             <div class="event-details">
               <div class="event-type ${e.type.toLowerCase()}">${e.type}</div>
               <div class="event-time">${formatDateTime(e.datetime)}</div>
@@ -110,15 +107,72 @@
 
     eventList.querySelectorAll(".event-card").forEach((card) => {
       card.addEventListener("click", () => {
-        const id = card.dataset.id;
-        const ev = events.find((x) => x.id === id);
+        const ev = events.find((x) => x.id === card.dataset.id);
         if (ev) selectEvent(ev);
       });
     });
   }
 
+  function setEventOpen(open) {
+    appEl.classList.toggle("event-open", open);
+    if (backToListBtn) backToListBtn.hidden = !open;
+  }
+
+  function clearFocus() {
+    document.querySelectorAll(".camera-tile.focused").forEach((t) => {
+      t.classList.remove("focused");
+    });
+  }
+
+  function exitNativeFs() {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+  }
+
+  function toggleTileFullscreen(tile) {
+    if (tile.classList.contains("focused")) {
+      tile.classList.remove("focused");
+      return;
+    }
+    if (document.fullscreenElement === tile || document.webkitFullscreenElement === tile) {
+      exitNativeFs();
+      return;
+    }
+
+    const goNative = tile.requestFullscreen
+      ? tile.requestFullscreen()
+      : tile.webkitRequestFullscreen
+        ? Promise.resolve(tile.webkitRequestFullscreen())
+        : null;
+
+    if (goNative && typeof goNative.then === "function") {
+      goNative.catch(() => {
+        clearFocus();
+        tile.classList.add("focused");
+      });
+      return;
+    }
+
+    const video = tile.querySelector("video");
+    if (video && video.webkitEnterFullscreen) {
+      try {
+        video.webkitEnterFullscreen();
+        return;
+      } catch (_) { /* fall through */ }
+    }
+
+    clearFocus();
+    tile.classList.add("focused");
+  }
+
   function selectEvent(event) {
     activeEvent = event;
+    setEventOpen(true);
+    clearFocus();
+    exitNativeFs();
 
     eventList.querySelectorAll(".event-card").forEach((c) => {
       c.classList.toggle("active", c.dataset.id === event.id);
@@ -150,7 +204,8 @@
 
     videos.forEach((v) => {
       v.pause();
-      v.src = "";
+      v.removeAttribute("src");
+      v.load();
     });
     videos = [];
     isPlaying = false;
@@ -165,11 +220,24 @@
 
       const label = document.createElement("div");
       label.className = "camera-label";
-      label.textContent = name.replace("_", " ");
+      label.textContent = name.replace(/_/g, " ");
+
+      const fsBtn = document.createElement("button");
+      fsBtn.type = "button";
+      fsBtn.className = "cam-fs";
+      fsBtn.title = "Fullscreen this camera";
+      fsBtn.setAttribute("aria-label", `Fullscreen ${name.replace(/_/g, " ")}`);
+      fsBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`;
+      fsBtn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        toggleTileFullscreen(tile);
+      });
 
       const video = document.createElement("video");
       video.preload = "metadata";
       video.playsInline = true;
+      video.setAttribute("playsinline", "");
+      video.setAttribute("webkit-playsinline", "");
       video.muted = isMuted;
       video.src = `/media/${event.path}/${filename}`;
 
@@ -182,7 +250,7 @@
       });
 
       video.addEventListener("timeupdate", () => {
-        if (videos[0] === video && !seekBar.dragging) {
+        if (videos[0] === video && !seeking) {
           seekBar.value = video.currentTime;
           updateTimeDisplay();
         }
@@ -195,11 +263,30 @@
         }
       });
 
+      tile.addEventListener("click", (ev) => {
+        if (ev.target.closest(".cam-fs")) return;
+        const now = Date.now();
+        if (lastTap.tile === tile && now - lastTap.time < 320) {
+          toggleTileFullscreen(tile);
+          lastTap = { time: 0, tile: null };
+        } else {
+          lastTap = { time: now, tile };
+        }
+      });
+
       tile.appendChild(video);
       tile.appendChild(label);
+      tile.appendChild(fsBtn);
       cameraGrid.appendChild(tile);
       videos.push(video);
     });
+
+    const activeCard = eventList.querySelector(".event-card.active");
+    if (activeCard) activeCard.scrollIntoView({ block: "nearest" });
+  }
+
+  function showEventList() {
+    setEventOpen(false);
   }
 
   function togglePlay() {
@@ -227,9 +314,7 @@
 
   function seekTo(time) {
     videos.forEach((v) => {
-      if (Math.abs(v.currentTime - time) > 0.3) {
-        v.currentTime = time;
-      }
+      if (Math.abs(v.currentTime - time) > 0.3) v.currentTime = time;
     });
     updateTimeDisplay();
   }
@@ -280,6 +365,10 @@
     fetchEvents(0, false);
   });
 
+  if (backToListBtn) {
+    backToListBtn.addEventListener("click", showEventList);
+  }
+
   loadMoreBtn.addEventListener("click", () => {
     fetchEvents(currentOffset, true);
   });
@@ -288,21 +377,15 @@
   syncMuteBtn.addEventListener("click", toggleMute);
 
   let seeking = false;
-  seekBar.addEventListener("mousedown", () => (seeking = true));
-  seekBar.addEventListener("touchstart", () => (seeking = true));
+  seekBar.addEventListener("pointerdown", () => (seeking = true));
   seekBar.addEventListener("input", () => {
-    if (seeking) {
-      seekTo(parseFloat(seekBar.value));
-    }
+    seekTo(parseFloat(seekBar.value));
   });
-  seekBar.addEventListener("mouseup", () => {
+  seekBar.addEventListener("pointerup", () => {
     seeking = false;
     seekTo(parseFloat(seekBar.value));
   });
-  seekBar.addEventListener("touchend", () => {
-    seeking = false;
-    seekTo(parseFloat(seekBar.value));
-  });
+  seekBar.addEventListener("pointercancel", () => (seeking = false));
 
   document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
@@ -315,6 +398,15 @@
       seekTo(Math.max(0, (videos[0]?.currentTime || 0) - 5));
     } else if (e.code === "KeyM") {
       toggleMute();
+    } else if (e.code === "Escape") {
+      clearFocus();
+      exitNativeFs();
+    }
+  });
+
+  document.addEventListener("fullscreenchange", () => {
+    if (!document.fullscreenElement) {
+      /* native fs closed */
     }
   });
 
