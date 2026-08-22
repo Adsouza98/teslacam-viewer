@@ -4,7 +4,7 @@ Lightweight, self-hosted Docker web application for browsing and playing TeslaUS
 
 Designed for **TrueNAS Scale + Portainer** and older hardware (Haswell-friendly).
 
-**Image:** `ghcr.io/adsouza98/teslacam-viewer:1.1.0`
+**Image:** `ghcr.io/adsouza98/teslacam-viewer:1.1.1`
 
 Version is defined in `VERSION`. Pushing to `main` publishes that tag (and `latest`) to GHCR. Bump `VERSION` for a new release so Portainer/Renovate can pick it up.
 
@@ -14,7 +14,7 @@ Version is defined in `VERSION`. Pushing to `main` publishes that tag (and `late
 - Browse **Saved**, **Sentry**, and **Recent** clips
 - Filter by date range
 - Multi-camera synchronized playback (front / back / left / right / pillars)
-- Fullscreen a single camera (button or double-tap)
+- Fullscreen a single camera (button, **Fullscreen** in the player bar, or double-tap). Phones use a viewport overlay because native Fullscreen on a tile often does nothing on Android/Samsung.
 - Uses existing `thumb.png` when available, otherwise generates a thumbnail
 - Optional HTTP Basic Authentication
 - Read-only media mount
@@ -23,7 +23,7 @@ Version is defined in `VERSION`. Pushing to `main` publishes that tag (and `late
 ## Image (GHCR)
 
 ```
-ghcr.io/adsouza98/teslacam-viewer:1.1.0
+ghcr.io/adsouza98/teslacam-viewer:1.1.1
 ```
 
 Because this repository is **private**, Portainer needs a GitHub PAT (`read:packages`) registered as a Docker registry:
@@ -72,7 +72,7 @@ Leave auth empty to disable login.
 - `←` / `→` – Seek ±5 seconds
 - `M` – Mute / Unmute
 - `Esc` – Exit camera fullscreen
-- Camera **expand** button or **double-tap** a video – fullscreen that angle
+- Camera **Full** button, player **Fullscreen**, or **double-tap** a video – fullscreen that angle
 
 ## License
 
