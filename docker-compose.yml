@@ -1,16 +1,16 @@
 services:
   teslacam-viewer:
     build: .
-    image: ghcr.io/adsouza98/teslacam-viewer:1.1.3
+    image: ghcr.io/adsouza98/teslacam-viewer:1.1.4
     container_name: teslacam-viewer
     environment:
-      - PUID=${PUID:-568}
-      - PGID=${PGID:-568}
-      - TZ=${TZ:-America/Toronto}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-UTC}
       - AUTH_USER=${TESLACAM_AUTH_USER:-}
       - AUTH_PASS=${TESLACAM_AUTH_PASS:-}
     volumes:
-      - ${TESLACAM_MEDIA_PATH:-/mnt/Starlink/Tesla/TeslaUSB}:/media:ro
+      - ${TESLACAM_MEDIA_PATH:-./media}:/media:ro
       - teslacam-cache:/cache
     ports:
       - "${TESLACAM_PORT:-8000}:8000"

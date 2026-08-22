@@ -1,40 +1,63 @@
 # TeslaCam Viewer
 
-Lightweight, self-hosted Docker web application for browsing and playing TeslaUSB / TeslaCam archived clips.
+Lightweight, self-hosted web app for browsing TeslaUSB / TeslaCam archives.
 
-Designed for **TrueNAS Scale + Portainer** and older hardware (Haswell-friendly).
+Play Saved, Sentry, and Recent clips with synchronized multi-camera playback. Runs in Docker, including on older NAS/homelab hardware.
 
-**Image:** `ghcr.io/adsouza98/teslacam-viewer:1.1.1`
-
-Version is defined in `VERSION`. Pushing to `main` publishes that tag (and `latest`) to GHCR. Bump `VERSION` for a new release so Portainer/Renovate can pick it up.
+**Image:** [`ghcr.io/adsouza98/teslacam-viewer:1.1.4`](https://github.com/Adsouza98/teslacam-viewer/pkgs/container/teslacam-viewer)
 
 ## Features
 
-- Clean dark-theme UI, tuned for phones and foldables (Galaxy Z Fold folded + unfolded)
+- Dark-theme UI that works on desktop, phones, and foldables
 - Browse **Saved**, **Sentry**, and **Recent** clips
 - Filter by date range
 - Multi-camera synchronized playback (front / back / left / right / pillars)
-- Fullscreen a single camera (button, **Fullscreen** in the player bar, or double-tap). Phones use a viewport overlay because native Fullscreen on a tile often does nothing on Android/Samsung.
-- Uses existing `thumb.png` when available, otherwise generates a thumbnail
+- Per-camera fullscreen (button, player bar, or double-tap)
+- Uses `thumb.png` when present, otherwise generates a thumbnail
 - Optional HTTP Basic Authentication
 - Read-only media mount
-- Runs as TrueNAS apps user (`PUID`/`PGID` 568 by default)
 
-## Image (GHCR)
+## Quick start
 
+```bash
+docker run -d --name teslacam-viewer \
+  -p 8000:8000 \
+  -e TZ=UTC \
+  -v /path/to/TeslaUSB:/media:ro \
+  ghcr.io/adsouza98/teslacam-viewer:1.1.4
 ```
-ghcr.io/adsouza98/teslacam-viewer:1.1.1
+
+Or with Compose:
+
+```yaml
+services:
+  teslacam-viewer:
+    image: ghcr.io/adsouza98/teslacam-viewer:1.1.4
+    container_name: teslacam-viewer
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: UTC
+      AUTH_USER: ""   # optional
+      AUTH_PASS: ""   # optional
+    volumes:
+      - /path/to/TeslaUSB:/media:ro
+      - teslacam-cache:/cache
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+volumes:
+  teslacam-cache:
 ```
 
-Because this repository is **private**, Portainer needs a GitHub PAT (`read:packages`) registered as a Docker registry:
+Then open `http://localhost:8000`.
 
-- Registry URL: `https://ghcr.io`
-- Username: your GitHub username
-- Password: PAT with `read:packages`
+The GHCR image is public — no GitHub login is required to pull it.
 
-You do **not** clone this repo onto TrueNAS. Pin the version in `homelab-stacks` and let Portainer poll git / Renovate bump the tag.
+## Expected folder layout
 
-## Folder Structure Expected
+Mount the TeslaUSB archive at `/media` (read-only). Either of these works:
 
 ```
 /media/
@@ -50,21 +73,23 @@ You do **not** clone this repo onto TrueNAS. Pin the version in `homelab-stacks`
 └── RecentClips/
 ```
 
-Also works if the clips live under `/media/TeslaCam/...`.
+```
+/media/TeslaCam/SavedClips/...
+```
 
-## Portainer environment variables
+## Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PUID` | `568` | Process user ID (TrueNAS apps) |
-| `PGID` | `568` | Process group ID |
-| `TZ` | `America/Toronto` | Timezone |
-| `TESLACAM_MEDIA_PATH` | `/mnt/Starlink/Tesla/TeslaUSB` | Host path to TeslaUSB dataset |
-| `TESLACAM_AUTH_USER` | (empty) | Optional basic auth username |
-| `TESLACAM_AUTH_PASS` | (empty) | Optional basic auth password |
-| `TESLACAM_PORT` | `8000` | Host port |
+| `PUID` | `568` | UID the process runs as |
+| `PGID` | `568` | GID the process runs as |
+| `TZ` | `UTC` | Container timezone |
+| `AUTH_USER` | (empty) | Optional basic-auth username |
+| `AUTH_PASS` | (empty) | Optional basic-auth password |
+| `MEDIA_PATH` | `/media` | Media path **inside** the container |
+| `CACHE_PATH` | `/cache` | Thumbnail cache path inside the container |
 
-Leave auth empty to disable login.
+Leave `AUTH_USER` / `AUTH_PASS` empty to disable login. On TrueNAS SCALE the apps user is typically `568:568`.
 
 ## Keyboard / touch
 
@@ -72,8 +97,17 @@ Leave auth empty to disable login.
 - `←` / `→` – Seek ±5 seconds
 - `M` – Mute / Unmute
 - `Esc` – Exit camera fullscreen
-- Camera **Full** button, player **Fullscreen**, or **double-tap** a video – fullscreen that angle
+- Camera fullscreen button, player **Full**, or **double-tap** a video – fullscreen that angle
+
+## Build from source
+
+```bash
+docker build -t teslacam-viewer .
+docker run --rm -p 8000:8000 -v /path/to/TeslaUSB:/media:ro teslacam-viewer
+```
+
+Pushing to `main` publishes `VERSION` and `latest` to GHCR.
 
 ## License
 
-MIT – free to use and modify.
+MIT

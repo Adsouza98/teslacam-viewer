@@ -23,7 +23,7 @@ RUN chmod +x /docker-entrypoint.sh \
 
 ENV MEDIA_PATH=/media \
     CACHE_PATH=/cache \
-    TZ=America/Toronto \
+    TZ=UTC \
     PORT=8000 \
     PUID=568 \
     PGID=568

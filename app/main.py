@@ -1,7 +1,4 @@
-"""
-TeslaCam Viewer - Lightweight FastAPI backend for TeslaUSB archived clips.
-Designed for TrueNAS / older hardware (Haswell-friendly).
-"""
+"""TeslaCam Viewer - FastAPI backend for TeslaUSB / TeslaCam archives."""
 
 from __future__ import annotations
 
@@ -33,7 +30,7 @@ class Settings(BaseSettings):
     auth_user: Optional[str] = None
     auth_pass: Optional[str] = None
     cache_path: str = "/cache"
-    timezone: str = "America/Toronto"
+    timezone: str = "UTC"
 
     class Config:
         env_file = ".env"
