@@ -177,7 +177,8 @@
         fsVideo.currentTime = overlayResumeAt;
       } catch (_) {}
       fsVideo.play().catch(() => {});
-    };n
+    };
+
     if (fsVideo.readyState >= 1) start();
     else fsVideo.addEventListener("loadedmetadata", start, { once: true });
   }
