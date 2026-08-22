@@ -42,6 +42,9 @@
   const fsVideo = $("#fsVideo");
   const fsLabel = $("#fsLabel");
   const fsCloseBtn = $("#fsCloseBtn");
+  const playerListBtn = $("#playerListBtn");
+  const fsSeekBar = $("#fsSeekBar");
+  const fsTime = $("#fsTime");
 
   function prefersCssOverlay() {
     return (
@@ -131,6 +134,7 @@
   function setEventOpen(open) {
     appEl.classList.toggle("event-open", open);
     if (backToListBtn) backToListBtn.hidden = !open;
+    if (playerListBtn) playerListBtn.hidden = !open;
   }
 
   function exitNativeFs() {
@@ -169,6 +173,10 @@
     fsLabel.textContent = (tile.querySelector(".camera-label")?.textContent || "Camera").trim();
     fsVideo.muted = isMuted;
     fsVideo.src = video.currentSrc || video.src;
+    if (fsSeekBar) {
+      fsSeekBar.max = duration || video.duration || 100;
+      fsSeekBar.value = overlayResumeAt;
+    }
     fsLayer.hidden = false;
     videos.forEach((v) => v.pause());
 
@@ -307,6 +315,7 @@
         if (video.duration > duration) {
           duration = video.duration;
           seekBar.max = duration;
+          if (fsSeekBar) fsSeekBar.max = duration;
           updateTimeDisplay();
         }
       });
@@ -407,6 +416,8 @@
         ? videos[0].currentTime
         : 0;
     timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(duration)}`;
+    if (fsTime) fsTime.textContent = `${formatTime(cur)} / ${formatTime(duration)}`;
+    if (fsSeekBar && overlayOpen() && !seeking) fsSeekBar.value = cur;
   }
 
   document.querySelectorAll(".filter-btn").forEach((btn) => {
@@ -451,6 +462,10 @@
     frontFsBtn.addEventListener("click", fullscreenPreferredCamera);
   }
 
+  if (playerListBtn) {
+    playerListBtn.addEventListener("click", showEventList);
+  }
+
   if (fsCloseBtn) {
     fsCloseBtn.addEventListener("click", closeOverlay);
   }
@@ -484,6 +499,16 @@
     seekTo(parseFloat(seekBar.value));
   });
   seekBar.addEventListener("pointercancel", () => (seeking = false));
+
+  if (fsSeekBar) {
+    fsSeekBar.addEventListener("pointerdown", () => (seeking = true));
+    fsSeekBar.addEventListener("input", () => seekTo(parseFloat(fsSeekBar.value)));
+    fsSeekBar.addEventListener("pointerup", () => {
+      seeking = false;
+      seekTo(parseFloat(fsSeekBar.value));
+    });
+    fsSeekBar.addEventListener("pointercancel", () => (seeking = false));
+  }
 
   document.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
