@@ -45,6 +45,9 @@
   const playerListBtn = $("#playerListBtn");
   const fsSeekBar = $("#fsSeekBar");
   const fsTime = $("#fsTime");
+  const fsPlayBtn = $("#fsPlayBtn");
+  const fsMuteBtn = $("#fsMuteBtn");
+  const sidebarScrim = $("#sidebarScrim");
 
   function prefersCssOverlay() {
     return (
@@ -133,8 +136,38 @@
 
   function setEventOpen(open) {
     appEl.classList.toggle("event-open", open);
+    if (open) appEl.classList.add("sidebar-collapsed");
+    else appEl.classList.remove("sidebar-collapsed");
     if (backToListBtn) backToListBtn.hidden = !open;
     if (playerListBtn) playerListBtn.hidden = !open;
+    syncScrim();
+  }
+
+  function toggleSidebar() {
+    if (!appEl.classList.contains("event-open")) return;
+    appEl.classList.toggle("sidebar-collapsed");
+    syncScrim();
+  }
+
+  function syncScrim() {
+    if (!sidebarScrim) return;
+    const show =
+      appEl.classList.contains("event-open") &&
+      !appEl.classList.contains("sidebar-collapsed");
+    sidebarScrim.hidden = !show;
+  }
+
+  function setPlaying(playing) {
+    isPlaying = playing;
+    const label = playing ? "⏸ Pause" : "▶ Play";
+    if (syncPlayBtn) syncPlayBtn.textContent = label;
+    if (fsPlayBtn) fsPlayBtn.textContent = label;
+  }
+
+  function setMutedUi() {
+    const label = isMuted ? "🔇" : "🔊";
+    if (syncMuteBtn) syncMuteBtn.textContent = label;
+    if (fsMuteBtn) fsMuteBtn.textContent = label;
   }
 
   function exitNativeFs() {
@@ -185,6 +218,7 @@
         fsVideo.currentTime = overlayResumeAt;
       } catch (_) {}
       fsVideo.play().catch(() => {});
+      setPlaying(true);
     };
 
     if (fsVideo.readyState >= 1) start();
@@ -277,8 +311,7 @@
       v.load();
     });
     videos = [];
-    isPlaying = false;
-    syncPlayBtn.textContent = "▶ Play";
+    setPlaying(false);
     duration = 0;
     seekBar.value = 0;
     timeDisplay.textContent = "0:00 / 0:00";
@@ -328,10 +361,7 @@
       });
 
       video.addEventListener("ended", () => {
-        if (videos.every((v) => v.ended || v.paused)) {
-          isPlaying = false;
-          syncPlayBtn.textContent = "▶ Play";
-        }
+        if (videos.every((v) => v.ended || v.paused)) setPlaying(false);
       });
 
       tile.addEventListener("pointerup", (ev) => {
@@ -358,30 +388,31 @@
 
   function showEventList() {
     closeOverlay();
-    setEventOpen(false);
+    toggleSidebar();
   }
 
   function togglePlay() {
     if (overlayOpen()) {
-      if (fsVideo.paused) fsVideo.play().catch(() => {});
-      else fsVideo.pause();
-      isPlaying = !fsVideo.paused;
-      syncPlayBtn.textContent = isPlaying ? "⏸ Pause" : "▶ Play";
+      if (fsVideo.paused) {
+        fsVideo.play().catch(() => {});
+        setPlaying(true);
+      } else {
+        fsVideo.pause();
+        setPlaying(false);
+      }
       return;
     }
     if (!videos.length) return;
     if (isPlaying) {
       videos.forEach((v) => v.pause());
-      isPlaying = false;
-      syncPlayBtn.textContent = "▶ Play";
+      setPlaying(false);
     } else {
       const t = videos[0].currentTime;
       videos.forEach((v) => {
         v.currentTime = t;
         v.play().catch(() => {});
       });
-      isPlaying = true;
-      syncPlayBtn.textContent = "⏸ Pause";
+      setPlaying(true);
     }
   }
 
@@ -389,7 +420,7 @@
     isMuted = !isMuted;
     videos.forEach((v) => (v.muted = isMuted));
     if (fsVideo) fsVideo.muted = isMuted;
-    syncMuteBtn.textContent = isMuted ? "🔇" : "🔊";
+    setMutedUi();
   }
 
   function seekTo(time) {
@@ -469,6 +500,9 @@
   if (fsCloseBtn) {
     fsCloseBtn.addEventListener("click", closeOverlay);
   }
+  if (fsPlayBtn) fsPlayBtn.addEventListener("click", togglePlay);
+  if (fsMuteBtn) fsMuteBtn.addEventListener("click", toggleMute);
+  if (sidebarScrim) sidebarScrim.addEventListener("click", toggleSidebar);
 
   if (fsVideo) {
     fsVideo.addEventListener("timeupdate", () => {
@@ -476,10 +510,8 @@
       seekBar.value = fsVideo.currentTime;
       updateTimeDisplay();
     });
-    fsVideo.addEventListener("ended", () => {
-      isPlaying = false;
-      syncPlayBtn.textContent = "▶ Play";
-    });
+    fsVideo.addEventListener("ended", () => setPlaying(false));
+    fsVideo.addEventListener("click", togglePlay);
   }
 
   loadMoreBtn.addEventListener("click", () => {
