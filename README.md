@@ -4,7 +4,9 @@ Lightweight, self-hosted Docker web application for browsing and playing TeslaUS
 
 Designed for **TrueNAS Scale + Portainer** and older hardware (Haswell-friendly).
 
-**Image:** `ghcr.io/adsouza98/teslacam-viewer:latest`
+**Image:** `ghcr.io/adsouza98/teslacam-viewer:1.1.0`
+
+Version is defined in `VERSION`. Pushing to `main` publishes that tag (and `latest`) to GHCR. Bump `VERSION` for a new release so Portainer/Renovate can pick it up.
 
 ## Features
 
@@ -20,10 +22,8 @@ Designed for **TrueNAS Scale + Portainer** and older hardware (Haswell-friendly)
 
 ## Image (GHCR)
 
-Every push to `main` publishes to GitHub Container Registry:
-
 ```
-ghcr.io/adsouza98/teslacam-viewer:latest
+ghcr.io/adsouza98/teslacam-viewer:1.1.0
 ```
 
 Because this repository is **private**, Portainer needs a GitHub PAT (`read:packages`) registered as a Docker registry:
@@ -32,7 +32,7 @@ Because this repository is **private**, Portainer needs a GitHub PAT (`read:pack
 - Username: your GitHub username
 - Password: PAT with `read:packages`
 
-You do **not** clone this repo onto TrueNAS. Add the image to `homelab-stacks` and let Portainer pull it.
+You do **not** clone this repo onto TrueNAS. Pin the version in `homelab-stacks` and let Portainer poll git / Renovate bump the tag.
 
 ## Folder Structure Expected
 

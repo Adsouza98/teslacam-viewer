@@ -1,5 +1,10 @@
 FROM python:3.12-slim
 
+ARG VERSION=0.0.0
+LABEL org.opencontainers.image.title="TeslaCam Viewer" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.source="https://github.com/Adsouza98/teslacam-viewer"
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     gosu \
