@@ -8,10 +8,11 @@ Designed for **TrueNAS Scale + Portainer** and older hardware (Haswell-friendly)
 
 ## Features
 
-- Clean dark-theme UI
+- Clean dark-theme UI, tuned for phones and foldables (Galaxy Z Fold folded + unfolded)
 - Browse **Saved**, **Sentry**, and **Recent** clips
 - Filter by date range
 - Multi-camera synchronized playback (front / back / left / right / pillars)
+- Fullscreen a single camera (button or double-tap)
 - Uses existing `thumb.png` when available, otherwise generates a thumbnail
 - Optional HTTP Basic Authentication
 - Read-only media mount
@@ -64,6 +65,14 @@ Also works if the clips live under `/media/TeslaCam/...`.
 | `TESLACAM_PORT` | `8000` | Host port |
 
 Leave auth empty to disable login.
+
+## Keyboard / touch
+
+- `Space` – Play / Pause all cameras
+- `←` / `→` – Seek ±5 seconds
+- `M` – Mute / Unmute
+- `Esc` – Exit camera fullscreen
+- Camera **expand** button or **double-tap** a video – fullscreen that angle
 
 ## License
 
