@@ -287,6 +287,28 @@ html, body {
 .camera-grid.cams-4 { grid-template-columns: 1fr 1fr; }
 .camera-grid.cams-5,
 .camera-grid.cams-6 { grid-template-columns: 1fr 1fr 1fr; }
+
+/* Tesla spatial layout (driver looking forward):
+   left pillar | front | right pillar
+   left repeater | back | right repeater */
+.camera-grid.tesla {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas:
+    "left_pillar front right_pillar"
+    "left_repeater back right_repeater";
+}
+.camera-grid.tesla.no-pillars {
+  grid-template-areas:
+    ". front ."
+    "left_repeater back right_repeater";
+}
+.camera-tile.cam-front { grid-area: front; }
+.camera-tile.cam-back { grid-area: back; }
+.camera-tile.cam-left_pillar { grid-area: left_pillar; }
+.camera-tile.cam-right_pillar { grid-area: right_pillar; }
+.camera-tile.cam-left_repeater { grid-area: left_repeater; }
+.camera-tile.cam-right_repeater { grid-area: right_repeater; }
 .camera-tile {
   position: relative;
   background: #000;
@@ -411,6 +433,7 @@ html, body {
   #app.event-open .controls { display: none; }
   #app.event-open .event-meta { display: none !important; }
   #app.event-open .header { padding: 0.4rem 0.75rem; }
+  .camera-grid.tesla,
   .camera-grid.cams-5,
   .camera-grid.cams-6 { grid-template-columns: 1fr 1fr 1fr; }
 }
@@ -423,11 +446,12 @@ html, body {
   .date-filters input[type="date"] { flex: 1; max-width: none; }
   .event-thumb { width: 80px; height: 45px; }
   .event-datetime { font-size: 0.85rem; }
+  .camera-grid.tesla,
   .camera-grid.cams-2,
   .camera-grid.cams-3,
   .camera-grid.cams-4,
   .camera-grid.cams-5,
-  .camera-grid.cams-6 { grid-template-columns: 1fr 1fr; }
+  .camera-grid.cams-6 { grid-template-columns: 1fr 1fr 1fr; }
 }
 
 @media (max-width: 1199px) and (orientation: landscape) {
@@ -438,6 +462,7 @@ html, body {
     border-right: 1px solid var(--border);
     border-bottom: none;
   }
+  .camera-grid.tesla,
   .camera-grid.cams-5,
   .camera-grid.cams-6 { grid-template-columns: 1fr 1fr 1fr; }
   .header { padding: 0.35rem 0.75rem; }

@@ -53,6 +53,34 @@
   const fsMuteBtn = $("#fsMuteBtn");
   const sidebarScrim = $("#sidebarScrim");
 
+  const CAMERA_LAYOUT = [
+    "left_pillar",
+    "front",
+    "right_pillar",
+    "left_repeater",
+    "back",
+    "right_repeater",
+  ];
+
+  function orderedCameras(cameras) {
+    const entries = [];
+    const seen = new Set();
+    CAMERA_LAYOUT.forEach((name) => {
+      if (cameras[name]) {
+        entries.push([name, cameras[name]]);
+        seen.add(name);
+      }
+    });
+    Object.entries(cameras).forEach(([name, file]) => {
+      if (!seen.has(name)) entries.push([name, file]);
+    });
+    return entries;
+  }
+
+  function masterVideo() {
+    return videos.find((v) => v._cam === "front") || videos[0];
+  }
+
   function prefersCssOverlay() {
     return (
       window.matchMedia("(pointer: coarse)").matches ||
@@ -242,7 +270,7 @@
   }
 
   function globalTime() {
-    const src = overlayOpen() ? fsVideo : videos[0];
+    const src = overlayOpen() ? fsVideo : masterVideo();
     if (!src) return 0;
     return prefixDuration(segmentIndex) + (src.currentTime || 0);
   }
@@ -350,8 +378,9 @@
   }
 
   function onSegmentEnded(video) {
-    if (video !== videos[0] && !(overlayOpen() && video === fsVideo)) return;
-    const files = (videos[0] && videos[0]._files) || [];
+    const master = masterVideo();
+    if (video !== master && !(overlayOpen() && video === fsVideo)) return;
+    const files = (master && master._files) || [];
     if (segmentIndex + 1 < files.length) {
       applySegment(segmentIndex + 1, 0, true, playGen);
       setPlaying(true);
@@ -480,8 +509,11 @@
       metaEl.style.display = "none";
     }
 
-    const cams = Object.entries(event.cameras);
-    cameraGrid.className = `camera-grid cams-${Math.min(cams.length, 6)}`;
+    const cams = orderedCameras(event.cameras);
+    const n = Math.min(cams.length, 6);
+    const names = cams.map(([name]) => name);
+    const hasPillars = names.includes("left_pillar") || names.includes("right_pillar");
+    cameraGrid.className = `camera-grid cams-${n} tesla${hasPillars ? " has-pillars" : " no-pillars"}`;
     cameraGrid.innerHTML = "";
 
     videos.forEach((v) => {
@@ -500,7 +532,7 @@
     cams.forEach(([name, filename]) => {
       const files = cameraFiles(event, name, filename).map((f) => mediaUrl(event, f));
       const tile = document.createElement("div");
-      tile.className = "camera-tile";
+      tile.className = `camera-tile cam-${name}`;
 
       const label = document.createElement("div");
       label.className = "camera-label";
@@ -526,6 +558,7 @@
       video.muted = isMuted;
       video._files = files;
       video._idx = 0;
+      video._cam = name;
       if (files[0]) video.src = files[0];
 
       video.addEventListener("loadedmetadata", () => {
@@ -538,7 +571,7 @@
       });
 
       video.addEventListener("timeupdate", () => {
-        if (videos[0] === video && !seeking && !overlayOpen()) {
+        if (masterVideo() === video && !seeking && !overlayOpen()) {
           seekBar.value = globalTime();
           updateTimeDisplay();
         }
@@ -564,7 +597,7 @@
       videos.push(video);
     });
 
-    const master = videos[0];
+    const master = masterVideo();
     if (master && master._files && master._files.length) {
       const guess = master._files.map(() => 60);
       segmentDurations = guess;
