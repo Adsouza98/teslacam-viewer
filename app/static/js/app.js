@@ -72,7 +72,6 @@
   const hudEl = $("#hud");
   const hudAp = $("#hudAp");
   const hudApVer = $("#hudApVer");
-  const hudFsdIcon = $("#hudFsdIcon");
   const hudWheel = $("#hudWheel");
   const hudAccelFill = $("#hudAccelFill");
   const hudBrake = $("#hudBrake");
@@ -476,16 +475,10 @@
     }
     hudEl.hidden = false;
     const ap = s.ap || "NONE";
-    const fsdOn = ap === "FSD";
     if (hudAp) {
-      hudAp.textContent =
-        fsdOn ? "Self-Driving" : ap === "AUTOSTEER" ? "Autosteer" : ap === "TACC" ? "TACC" : "Manual";
+      hudAp.textContent = ap === "NONE" ? "MANUAL" : ap;
       hudAp.className =
-        "hud-ap" + (fsdOn ? " on-fsd" : ap === "AUTOSTEER" ? " on-ap" : ap === "TACC" ? " on-tacc" : "");
-    }
-    if (hudFsdIcon) {
-      hudFsdIcon.classList.toggle("on-fsd", fsdOn);
-      hudFsdIcon.classList.toggle("on-ap", ap === "AUTOSTEER");
+        "hud-ap" + (ap === "FSD" ? " on-fsd" : ap === "AUTOSTEER" ? " on-ap" : ap === "TACC" ? " on-tacc" : "");
     }
     if (hudApVer) {
       const ver = s.fw || (telemetry && telemetry.fsd_version);
@@ -500,7 +493,6 @@
     if (hudWheel) {
       const deg = Math.max(-140, Math.min(140, s.steer || 0));
       hudWheel.style.transform = `rotate(${deg}deg)`;
-      hudWheel.classList.toggle("on-fsd", fsdOn);
     }
     if (hudAccelFill) {
       const pct = Math.max(0, Math.min(100, (s.accel || 0) * 100));

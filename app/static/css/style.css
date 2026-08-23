@@ -403,40 +403,29 @@ html, body {
 }
 .hud-ap-wrap {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.15rem;
 }
-.hud-fsd-icon {
-  width: 34px;
-  height: 34px;
-  background: #8b949e;
-  -webkit-mask: url(/static/img/fsd.png) center / contain no-repeat;
-  mask: url(/static/img/fsd.png) center / contain no-repeat;
-  flex-shrink: 0;
-}
-.hud-fsd-icon.on-fsd { background: #3e6ae1; }
-.hud-fsd-icon.on-ap { background: #3fb950; }
-.hud-ap-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
 .hud-ap {
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: #30363d;
   color: #8b949e;
-  min-width: 0;
-  text-align: left;
-  background: none;
-  padding: 0;
-  border-radius: 0;
+  min-width: 3.6rem;
+  text-align: center;
 }
-.hud-ap.on-fsd { color: #3e6ae1; }
-.hud-ap.on-ap { color: #3fb950; }
-.hud-ap.on-tacc { color: #d29922; }
+.hud-ap.on-fsd { background: #1f6feb; color: #fff; }
+.hud-ap.on-ap { background: #238636; color: #fff; }
+.hud-ap.on-tacc { background: #9e6a03; color: #fff; }
 .hud-ap-ver {
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: #8b949e;
-  margin-top: 0.12rem;
 }
 .hud-ap-ver[hidden] { display: none !important; }
 .hud-steer {
@@ -454,11 +443,10 @@ html, body {
 .hud-wheel-icon {
   width: 100%;
   height: 100%;
-  background: #e6edf3;
+  background: #1f6feb;
   -webkit-mask: url(/static/img/wheel.png) center / contain no-repeat;
   mask: url(/static/img/wheel.png) center / contain no-repeat;
 }
-.hud-wheel-wrap.on-fsd .hud-wheel-icon { background: #3e6ae1; }
 .hud-blink {
   width: 0;
   height: 0;
@@ -518,9 +506,8 @@ html, body {
 @media (max-width: 700px) {
   .hud { padding: 0.35rem 0.5rem; }
   .hud-cluster { gap: 0.55rem; }
-  .hud-wheel-wrap, .hud-acc, .hud-brake, .hud-fsd-icon { width: 30px; height: 30px; }
+  .hud-wheel-wrap, .hud-acc, .hud-brake { width: 30px; height: 30px; }
   .hud-speed { font-size: 1.2rem; }
-  .hud-ap { font-size: 0.72rem; }
 }
 .camera-label {
   position: absolute;
