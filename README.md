@@ -4,7 +4,7 @@ Lightweight, self-hosted web app for browsing TeslaUSB / TeslaCam archives.
 
 Play Saved, Sentry, and Recent clips with synchronized multi-camera playback. Runs in Docker, including on older NAS/homelab hardware.
 
-**Image:** [`ghcr.io/adsouza98/teslacam-viewer:1.3.2`](https://github.com/Adsouza98/teslacam-viewer/pkgs/container/teslacam-viewer)
+**Image:** [`ghcr.io/adsouza98/teslacam-viewer:1.3.3`](https://github.com/Adsouza98/teslacam-viewer/pkgs/container/teslacam-viewer)
 
 ## Features
 
@@ -28,7 +28,7 @@ docker run -d --name teslacam-viewer \
   -p 8000:8000 \
   -e TZ=UTC \
   -v /path/to/TeslaUSB:/media:ro \
-  ghcr.io/adsouza98/teslacam-viewer:1.3.2
+  ghcr.io/adsouza98/teslacam-viewer:1.3.3
 ```
 
 Or with Compose:
@@ -36,7 +36,7 @@ Or with Compose:
 ```yaml
 services:
   teslacam-viewer:
-    image: ghcr.io/adsouza98/teslacam-viewer:1.3.2
+    image: ghcr.io/adsouza98/teslacam-viewer:1.3.3
     container_name: teslacam-viewer
     environment:
       PUID: "1000"
@@ -105,9 +105,9 @@ Leave `AUTH_USER` / `AUTH_PASS` empty to disable login. On TrueNAS SCALE the app
 
 - `Space` – Play / Pause all cameras
 - `←` / `→` – Seek ±5 seconds
-- `M` – Mute / Unmute
 - `Esc` – Exit camera fullscreen
-- Camera fullscreen button, player **Full**, or **double-tap** a video – fullscreen that angle
+- **Front** (maximize icon) – expand the front camera only
+- Per-camera button or **double-tap** a video – fullscreen that angle
 
 ## Build from source
 

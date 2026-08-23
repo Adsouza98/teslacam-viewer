@@ -16,7 +16,7 @@
   let activeEvent = null;
   let videos = [];
   let isPlaying = false;
-  let isMuted = false;
+  let isMuted = true;
   let duration = 0;
   let lastTap = { time: 0, tile: null };
   let overlaySrc = null;
@@ -53,7 +53,8 @@
   const seekBar = $("#seekBar");
   const timeDisplay = $("#timeDisplay");
   const syncPlayBtn = $("#syncPlayBtn");
-  const syncMuteBtn = $("#syncMuteBtn");
+  const skipBackBtn = $("#skipBackBtn");
+  const skipFwdBtn = $("#skipFwdBtn");
   const backToListBtn = $("#backToListBtn");
   const frontFsBtn = $("#frontFsBtn");
   const fsLayer = $("#fsLayer");
@@ -65,7 +66,8 @@
   const fsSeekBar = $("#fsSeekBar");
   const fsTime = $("#fsTime");
   const fsPlayBtn = $("#fsPlayBtn");
-  const fsMuteBtn = $("#fsMuteBtn");
+  const fsSkipBackBtn = $("#fsSkipBackBtn");
+  const fsSkipFwdBtn = $("#fsSkipFwdBtn");
   const hudBtn = $("#hudBtn");
   const hudEl = $("#hud");
   const hudAp = $("#hudAp");
@@ -663,12 +665,6 @@
     if (fsPlayBtn) fsPlayBtn.textContent = label;
   }
 
-  function setMutedUi() {
-    const label = isMuted ? "🔇" : "🔊";
-    if (syncMuteBtn) syncMuteBtn.textContent = label;
-    if (fsMuteBtn) fsMuteBtn.textContent = label;
-  }
-
   function exitNativeFs() {
     if (document.fullscreenElement && document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
@@ -1096,21 +1092,14 @@
     }
   }
 
-  function toggleMute() {
-    isMuted = !isMuted;
-    cameras.forEach((c) => {
-      c.active.muted = isMuted;
-      c.standby.muted = isMuted;
-    });
-    if (fsVideo) fsVideo.muted = isMuted;
-    if (fsStandby) fsStandby.muted = isMuted;
-    setMutedUi();
-  }
-
   function seekTo(time) {
     const loc = locateSegment(time);
     applySegment(loc.idx, loc.offset, isPlaying && !seeking, playGen);
     updateTimeDisplay();
+  }
+
+  function skipBy(delta) {
+    seekTo(Math.max(0, Math.min(totalDuration(), globalTime() + delta)));
   }
 
   function formatTime(sec) {
@@ -1190,7 +1179,6 @@
     fsCloseBtn.addEventListener("click", closeOverlay);
   }
   if (fsPlayBtn) fsPlayBtn.addEventListener("click", togglePlay);
-  if (fsMuteBtn) fsMuteBtn.addEventListener("click", toggleMute);
   if (sidebarScrim) sidebarScrim.addEventListener("click", toggleSidebar);
 
   function wireOverlayVideo(el) {
@@ -1218,7 +1206,10 @@
   });
 
   syncPlayBtn.addEventListener("click", togglePlay);
-  syncMuteBtn.addEventListener("click", toggleMute);
+  if (skipBackBtn) skipBackBtn.addEventListener("click", () => skipBy(-5));
+  if (skipFwdBtn) skipFwdBtn.addEventListener("click", () => skipBy(5));
+  if (fsSkipBackBtn) fsSkipBackBtn.addEventListener("click", () => skipBy(-5));
+  if (fsSkipFwdBtn) fsSkipFwdBtn.addEventListener("click", () => skipBy(5));
 
   seekBar.addEventListener("pointerdown", () => (seeking = true));
   seekBar.addEventListener("input", () => {
@@ -1249,8 +1240,6 @@
       seekTo(Math.min(totalDuration(), globalTime() + 5));
     } else if (e.code === "ArrowLeft") {
       seekTo(Math.max(0, globalTime() - 5));
-    } else if (e.code === "KeyM") {
-      toggleMute();
     } else if (e.code === "Escape") {
       closeOverlay();
       exitNativeFs();

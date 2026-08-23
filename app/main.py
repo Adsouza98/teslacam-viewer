@@ -312,7 +312,7 @@ def scan_events() -> List[Dict[str, Any]]:
 app = FastAPI(
     title="TeslaCam Viewer",
     description="Lightweight viewer for TeslaUSB / TeslaCam archived clips",
-    version="1.3.2",
+    version="1.3.3",
 )
 
 app.add_middleware(
