@@ -388,8 +388,8 @@ html, body {
   align-items: center;
   justify-content: center;
   margin: 0.35rem 0 0;
-  padding: 0.4rem 0.7rem;
-  background: rgba(8, 12, 18, 0.92);
+  padding: 0.45rem 0.8rem;
+  background: rgba(8, 12, 18, 0.94);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 12px;
   color: #e6edf3;
@@ -399,35 +399,66 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 1.1rem;
+  gap: 1.15rem;
 }
+.hud-ap-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.hud-fsd-icon {
+  width: 34px;
+  height: 34px;
+  background: #8b949e;
+  -webkit-mask: url(/static/img/fsd.png) center / contain no-repeat;
+  mask: url(/static/img/fsd.png) center / contain no-repeat;
+  flex-shrink: 0;
+}
+.hud-fsd-icon.on-fsd { background: #3e6ae1; }
+.hud-fsd-icon.on-ap { background: #3fb950; }
+.hud-ap-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; }
 .hud-ap {
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  padding: 0.25rem 0.55rem;
-  border-radius: 999px;
-  background: #30363d;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   color: #8b949e;
-  min-width: 3.6rem;
-  text-align: center;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  padding: 0;
+  border-radius: 0;
 }
-.hud-ap.on-fsd { background: #1f6feb; color: #fff; }
-.hud-ap.on-ap { background: #238636; color: #fff; }
-.hud-ap.on-tacc { background: #9e6a03; color: #fff; }
+.hud-ap.on-fsd { color: #3e6ae1; }
+.hud-ap.on-ap { color: #3fb950; }
+.hud-ap.on-tacc { color: #d29922; }
+.hud-ap-ver {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #8b949e;
+  margin-top: 0.12rem;
+}
+.hud-ap-ver[hidden] { display: none !important; }
 .hud-steer {
   display: flex;
   align-items: center;
   gap: 0.45rem;
 }
-.hud-wheel {
-  width: 46px;
-  height: 46px;
-  color: #e6edf3;
+.hud-wheel-wrap {
+  width: 44px;
+  height: 44px;
   flex-shrink: 0;
   transform-origin: 50% 50%;
   transition: transform 0.08s linear;
 }
+.hud-wheel-icon {
+  width: 100%;
+  height: 100%;
+  background: #e6edf3;
+  -webkit-mask: url(/static/img/wheel.png) center / contain no-repeat;
+  mask: url(/static/img/wheel.png) center / contain no-repeat;
+}
+.hud-wheel-wrap.on-fsd .hud-wheel-icon { background: #3e6ae1; }
 .hud-blink {
   width: 0;
   height: 0;
@@ -437,37 +468,35 @@ html, body {
 .hud-blink-l { border-width: 7px 12px 7px 0; border-color: transparent #3fb950 transparent transparent; }
 .hud-blink-r { border-width: 7px 0 7px 12px; border-color: transparent transparent transparent #3fb950; }
 .hud-blink.on { opacity: 1; filter: drop-shadow(0 0 6px #3fb950); }
-.hud-pedals { display: flex; gap: 0.7rem; align-items: flex-end; }
-.hud-pedal-col { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }
+.hud-pedals { display: flex; gap: 0.85rem; align-items: flex-end; }
+.hud-pedal-col { display: flex; flex-direction: column; align-items: center; gap: 0.12rem; }
 .hud-pedal-label { font-size: 0.58rem; letter-spacing: 0.06em; color: #8b949e; font-weight: 700; }
-.hud-acc-pedal {
-  width: 22px;
-  height: 38px;
-  background: #21262d;
-  clip-path: polygon(28% 0%, 100% 100%, 0% 100%, 6% 0%);
-  display: flex;
-  align-items: flex-end;
-  overflow: hidden;
+.hud-acc {
+  position: relative;
+  width: 36px;
+  height: 36px;
 }
+.hud-acc-base,
 .hud-accel-fill {
-  width: 100%;
-  height: 0%;
-  background: linear-gradient(180deg, #56d364, #238636);
-  transition: height 0.08s linear;
+  position: absolute;
+  inset: 0;
+  -webkit-mask: url(/static/img/acc.png) center / contain no-repeat;
+  mask: url(/static/img/acc.png) center / contain no-repeat;
+}
+.hud-acc-base { background: #6e7681; }
+.hud-accel-fill {
+  background: #3fb950;
+  clip-path: inset(calc(100% - var(--fill, 0%)) 0 0 0);
+  transition: clip-path 0.08s linear;
 }
 .hud-brake {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #1c1214;
-  border: 3px solid #6e2b30;
-  box-shadow: inset 0 0 0 3px #161b22;
+  width: 36px;
+  height: 36px;
+  background: #6e7681;
+  -webkit-mask: url(/static/img/brk.png) center / contain no-repeat;
+  mask: url(/static/img/brk.png) center / contain no-repeat;
 }
-.hud-brake.on {
-  background: #f85149;
-  border-color: #ff7b72;
-  box-shadow: 0 0 10px rgba(248,81,73,0.85), inset 0 0 0 3px #3d0a0a;
-}
+.hud-brake.on { background: #f85149; filter: drop-shadow(0 0 6px rgba(248,81,73,0.75)); }
 .hud-readout { display: flex; align-items: baseline; gap: 0.35rem; }
 .hud-speed { font-size: 1.55rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 .hud-speed-unit { font-size: 0.7rem; color: #8b949e; }
@@ -489,8 +518,9 @@ html, body {
 @media (max-width: 700px) {
   .hud { padding: 0.35rem 0.5rem; }
   .hud-cluster { gap: 0.55rem; }
-  .hud-wheel { width: 36px; height: 36px; }
+  .hud-wheel-wrap, .hud-acc, .hud-brake, .hud-fsd-icon { width: 30px; height: 30px; }
   .hud-speed { font-size: 1.2rem; }
+  .hud-ap { font-size: 0.72rem; }
 }
 .camera-label {
   position: absolute;

@@ -71,6 +71,8 @@
   const hudBtn = $("#hudBtn");
   const hudEl = $("#hud");
   const hudAp = $("#hudAp");
+  const hudApVer = $("#hudApVer");
+  const hudFsdIcon = $("#hudFsdIcon");
   const hudWheel = $("#hudWheel");
   const hudAccelFill = $("#hudAccelFill");
   const hudBrake = $("#hudBrake");
@@ -474,17 +476,35 @@
     }
     hudEl.hidden = false;
     const ap = s.ap || "NONE";
+    const fsdOn = ap === "FSD";
     if (hudAp) {
-      hudAp.textContent = ap === "NONE" ? "MANUAL" : ap;
-      hudAp.className = "hud-ap" + (ap === "FSD" ? " on-fsd" : ap === "AUTOSTEER" ? " on-ap" : ap === "TACC" ? " on-tacc" : "");
+      hudAp.textContent =
+        fsdOn ? "Self-Driving" : ap === "AUTOSTEER" ? "Autosteer" : ap === "TACC" ? "TACC" : "Manual";
+      hudAp.className =
+        "hud-ap" + (fsdOn ? " on-fsd" : ap === "AUTOSTEER" ? " on-ap" : ap === "TACC" ? " on-tacc" : "");
+    }
+    if (hudFsdIcon) {
+      hudFsdIcon.classList.toggle("on-fsd", fsdOn);
+      hudFsdIcon.classList.toggle("on-ap", ap === "AUTOSTEER");
+    }
+    if (hudApVer) {
+      const ver = s.fw || (telemetry && telemetry.fsd_version);
+      if (ver) {
+        hudApVer.hidden = false;
+        hudApVer.textContent = String(ver).startsWith("v") ? String(ver) : `v${ver}`;
+      } else {
+        hudApVer.hidden = true;
+        hudApVer.textContent = "";
+      }
     }
     if (hudWheel) {
       const deg = Math.max(-140, Math.min(140, s.steer || 0));
       hudWheel.style.transform = `rotate(${deg}deg)`;
+      hudWheel.classList.toggle("on-fsd", fsdOn);
     }
     if (hudAccelFill) {
       const pct = Math.max(0, Math.min(100, (s.accel || 0) * 100));
-      hudAccelFill.style.height = `${pct}%`;
+      hudAccelFill.style.setProperty("--fill", `${pct}%`);
     }
     if (hudBrake) hudBrake.classList.toggle("on", !!s.brake);
     if (hudSpeed) hudSpeed.textContent = Math.round(s.speed || 0);

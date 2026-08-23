@@ -312,7 +312,7 @@ def scan_events() -> List[Dict[str, Any]]:
 app = FastAPI(
     title="TeslaCam Viewer",
     description="Lightweight viewer for TeslaUSB / TeslaCam archived clips",
-    version="1.3.3",
+    version="1.4.0",
 )
 
 app.add_middleware(
@@ -442,7 +442,14 @@ async def get_telemetry(event_id: str, _: bool = Depends(check_auth)):
             samples = extract_cached(video, cache_root)
             out_segs.append({"file": name, "samples": samples, "count": len(samples)})
         available = any(s["count"] for s in out_segs)
-        return {"available": available, "segments": out_segs}
+        fws = [
+            sample.get("fw")
+            for seg in out_segs
+            for sample in seg.get("samples") or []
+            if sample.get("fw")
+        ]
+        fsd_version = max(set(fws), key=fws.count) if fws else None
+        return {"available": available, "segments": out_segs, "fsd_version": fsd_version}
 
     return await asyncio.to_thread(_run)
 

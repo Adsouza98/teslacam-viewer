@@ -10,12 +10,14 @@ All processing is local — video never leaves the host.
 from __future__ import annotations
 
 import json
+import re
 import struct
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 GEAR = {0: "P", 1: "D", 2: "R", 3: "N"}
 AP = {0: "NONE", 1: "FSD", 2: "AUTOSTEER", 3: "TACC"}
+FW_RE = re.compile(r"^(?:\d{1,2}\.\d{1,2}(?:\.\d{1,2}){0,3}|\d{4}\.\d+(?:\.\d+)*)$")
 
 
 def _decode_varint(buf: bytes, i: int) -> Tuple[int, int]:
@@ -86,7 +88,15 @@ def parse_sei_metadata(data: bytes) -> Optional[Dict[str, Any]]:
                     out["heading"] = val
             elif wtype == 2:
                 ln, i = _decode_varint(data, i)
+                blob = data[i : i + ln]
                 i += ln
+                if 3 <= ln <= 32:
+                    try:
+                        text = blob.decode("ascii")
+                        if FW_RE.match(text):
+                            out["fw"] = text
+                    except Exception:
+                        pass
             else:
                 break
     except Exception:
@@ -222,6 +232,10 @@ def extract_file(path: Path, max_samples: int = 4000) -> List[Dict[str, Any]]:
             "bl": bool(meta.get("blink_l")),
             "br": bool(meta.get("blink_r")),
         }
+        if meta.get("fw"):
+            sample["fw"] = meta["fw"]
+        if meta.get("version") is not None:
+            sample["ver"] = meta["version"]
         samples.append(sample)
         kept += 1
         if kept >= max_samples:
