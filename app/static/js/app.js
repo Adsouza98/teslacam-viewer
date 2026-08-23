@@ -493,6 +493,7 @@
     if (hudWheel) {
       const deg = Math.max(-140, Math.min(140, s.steer || 0));
       hudWheel.style.transform = `rotate(${deg}deg)`;
+      hudWheel.classList.toggle("on-fsd", ap === "FSD");
     }
     if (hudAccelFill) {
       const pct = Math.max(0, Math.min(100, (s.accel || 0) * 100));

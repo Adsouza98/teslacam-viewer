@@ -1,7 +1,7 @@
 services:
   teslacam-viewer:
     build: .
-    image: ghcr.io/adsouza98/teslacam-viewer:1.4.1
+    image: ghcr.io/adsouza98/teslacam-viewer:1.4.2
     container_name: teslacam-viewer
     environment:
       - PUID=${PUID:-1000}

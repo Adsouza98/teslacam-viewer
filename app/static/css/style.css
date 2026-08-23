@@ -443,9 +443,14 @@ html, body {
 .hud-wheel-icon {
   width: 100%;
   height: 100%;
+  background: #ffffff;
+  -webkit-mask: url(/static/img/wheel.png?v=1.4.2) center / contain no-repeat;
+  mask: url(/static/img/wheel.png?v=1.4.2) center / contain no-repeat;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9));
+}
+.hud-wheel-wrap.on-fsd .hud-wheel-icon {
   background: #1f6feb;
-  -webkit-mask: url(/static/img/wheel.png) center / contain no-repeat;
-  mask: url(/static/img/wheel.png) center / contain no-repeat;
+  filter: drop-shadow(0 0 5px rgba(31,111,235,0.85));
 }
 .hud-blink {
   width: 0;
@@ -458,33 +463,50 @@ html, body {
 .hud-blink.on { opacity: 1; filter: drop-shadow(0 0 6px #3fb950); }
 .hud-pedals { display: flex; gap: 0.85rem; align-items: flex-end; }
 .hud-pedal-col { display: flex; flex-direction: column; align-items: center; gap: 0.12rem; }
-.hud-pedal-label { font-size: 0.58rem; letter-spacing: 0.06em; color: #8b949e; font-weight: 700; }
-.hud-acc {
+.hud-pedal-label { font-size: 0.58rem; letter-spacing: 0.06em; color: #c9d1d9; font-weight: 700; }
+.hud-acc,
+.hud-brake {
   position: relative;
   width: 36px;
   height: 36px;
 }
 .hud-acc-base,
-.hud-accel-fill {
+.hud-accel-fill,
+.hud-brake-base,
+.hud-brake-fill {
   position: absolute;
   inset: 0;
-  -webkit-mask: url(/static/img/acc.png) center / contain no-repeat;
-  mask: url(/static/img/acc.png) center / contain no-repeat;
 }
-.hud-acc-base { background: #6e7681; }
+.hud-acc-base,
+.hud-accel-fill {
+  -webkit-mask: url(/static/img/acc.png?v=1.4.2) center / contain no-repeat;
+  mask: url(/static/img/acc.png?v=1.4.2) center / contain no-repeat;
+}
+.hud-brake-base,
+.hud-brake-fill {
+  -webkit-mask: url(/static/img/brk.png?v=1.4.2) center / contain no-repeat;
+  mask: url(/static/img/brk.png?v=1.4.2) center / contain no-repeat;
+}
+.hud-acc-base,
+.hud-brake-base {
+  background: #ffffff;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,0.85));
+}
 .hud-accel-fill {
   background: #3fb950;
   clip-path: inset(calc(100% - var(--fill, 0%)) 0 0 0);
   transition: clip-path 0.08s linear;
+  filter: drop-shadow(0 0 4px rgba(63,185,80,0.55));
 }
-.hud-brake {
-  width: 36px;
-  height: 36px;
-  background: #6e7681;
-  -webkit-mask: url(/static/img/brk.png) center / contain no-repeat;
-  mask: url(/static/img/brk.png) center / contain no-repeat;
+.hud-brake-fill {
+  background: #f85149;
+  opacity: 0;
+  transition: opacity 0.08s linear;
 }
-.hud-brake.on { background: #f85149; filter: drop-shadow(0 0 6px rgba(248,81,73,0.75)); }
+.hud-brake.on .hud-brake-fill {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px rgba(248,81,73,0.8));
+}
 .hud-readout { display: flex; align-items: baseline; gap: 0.35rem; }
 .hud-speed { font-size: 1.55rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 .hud-speed-unit { font-size: 0.7rem; color: #8b949e; }
