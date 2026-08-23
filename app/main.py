@@ -16,7 +16,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
-from pydantic_settings import BaseSettings
+from app.sei import extract_cached
 from starlette.middleware.cors import CORSMiddleware
 import secrets
 
@@ -310,7 +310,7 @@ def scan_events() -> List[Dict[str, Any]]:
 app = FastAPI(
     title="TeslaCam Viewer",
     description="Lightweight viewer for TeslaUSB / TeslaCam archived clips",
-    version="1.1.7",
+    version="1.2.0",
 )
 
 app.add_middleware(
@@ -406,6 +406,43 @@ async def serve_media(file_path: str, request: Request, _: bool = Depends(check_
         media_type="video/mp4" if full.suffix.lower() == ".mp4" else "application/octet-stream",
         filename=full.name,
     )
+
+
+@app.get("/api/telemetry/{event_id:path}")
+async def get_telemetry(event_id: str, _: bool = Depends(check_auth)):
+    """Return driving HUD samples extracted locally from dashcam SEI."""
+    events = scan_events()
+    event = next((e for e in events if e["id"] == event_id), None)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    root = get_media_root()
+    event_dir = root / event["path"]
+    segs = event.get("segments") or {}
+    cam_files = segs.get("front") or event.get("cameras", {}).get("front")
+    if isinstance(cam_files, str):
+        cam_files = [cam_files]
+    if not cam_files:
+        # any camera
+        if segs:
+            cam_files = next(iter(segs.values()))
+        elif event.get("cameras"):
+            cam_files = [next(iter(event["cameras"].values()))]
+        else:
+            cam_files = []
+
+    cache_root = Path(settings.cache_path)
+
+    def _run():
+        out_segs = []
+        for name in cam_files:
+            video = event_dir / name
+            samples = extract_cached(video, cache_root)
+            out_segs.append({"file": name, "samples": samples, "count": len(samples)})
+        available = any(s["count"] for s in out_segs)
+        return {"available": available, "segments": out_segs}
+
+    return await asyncio.to_thread(_run)
 
 
 @app.get("/api/health")

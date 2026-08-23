@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>TeslaCam Viewer</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.1.7" />
+  <link rel="stylesheet" href="/static/css/style.css?v=1.2.0" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F697;</text></svg>">
 </head>
 <body>
@@ -66,7 +66,33 @@
             </div>
           </div>
 
-          <div class="camera-grid" id="cameraGrid"></div>
+          <div class="camera-stage">
+            <div class="camera-grid" id="cameraGrid"></div>
+            <div id="hud" class="hud" hidden>
+              <div class="hud-ap" id="hudAp">—</div>
+              <div class="hud-blink hud-blink-l" id="hudBlinkL"></div>
+              <svg class="hud-wheel" id="hudWheel" viewBox="0 0 64 64" aria-hidden="true">
+                <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" stroke-width="4"/>
+                <path d="M10 32 h44 M32 8 v16 M18 48 h28" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+              </svg>
+              <div class="hud-blink hud-blink-r" id="hudBlinkR"></div>
+              <div class="hud-pedals">
+                <div class="hud-pedal-col">
+                  <div class="hud-pedal-label">ACC</div>
+                  <div class="hud-accel-track"><div class="hud-accel-fill" id="hudAccelFill"></div></div>
+                </div>
+                <div class="hud-pedal-col">
+                  <div class="hud-pedal-label">BRK</div>
+                  <div class="hud-brake" id="hudBrake"></div>
+                </div>
+              </div>
+              <div class="hud-readout">
+                <div class="hud-speed" id="hudSpeed">0</div>
+                <div class="hud-speed-unit">km/h</div>
+                <div class="hud-gear" id="hudGear">P</div>
+              </div>
+            </div>
+          </div>
 
           <div class="event-meta" id="eventMeta" style="display:none;"></div>
 
@@ -77,6 +103,7 @@
             <div class="player-buttons">
               <button id="syncPlayBtn" class="btn primary" title="Play / Pause all">&#x25B6; Play</button>
               <button id="syncMuteBtn" class="btn" title="Mute / Unmute" aria-label="Mute">&#x1F50A;</button>
+              <button id="hudBtn" class="btn" title="Toggle driving HUD">HUD</button>
               <button id="frontFsBtn" class="btn" title="Fullscreen front camera">Full</button>
               <span id="timeDisplay">0:00 / 0:00</span>
             </div>
@@ -96,11 +123,12 @@
       <button type="button" id="fsCloseBtn" class="btn primary">Close</button>
     </div>
     <video id="fsVideo" playsinline webkit-playsinline></video>
+    <div id="fsHud" class="hud hud-fs" hidden></div>
     <div class="fs-seek">
       <input type="range" id="fsSeekBar" min="0" max="100" value="0" step="0.1" />
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=1.1.7"></script>
+  <script src="/static/js/app.js?v=1.2.0"></script>
 </body>
 </html>

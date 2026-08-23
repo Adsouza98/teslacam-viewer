@@ -51,7 +51,20 @@
   const fsTime = $("#fsTime");
   const fsPlayBtn = $("#fsPlayBtn");
   const fsMuteBtn = $("#fsMuteBtn");
+  const hudBtn = $("#hudBtn");
+  const hudEl = $("#hud");
+  const hudAp = $("#hudAp");
+  const hudWheel = $("#hudWheel");
+  const hudAccelFill = $("#hudAccelFill");
+  const hudBrake = $("#hudBrake");
+  const hudSpeed = $("#hudSpeed");
+  const hudGear = $("#hudGear");
+  const hudBlinkL = $("#hudBlinkL");
+  const hudBlinkR = $("#hudBlinkR");
   const sidebarScrim = $("#sidebarScrim");
+
+  let telemetry = null;
+  let hudEnabled = localStorage.getItem("teslacam-hud") !== "0";
 
   const CAMERA_LAYOUT = [
     "left_pillar",
@@ -79,6 +92,77 @@
 
   function masterVideo() {
     return videos.find((v) => v._cam === "front") || videos[0];
+  }
+
+  function findTelemetrySample(t, idx) {
+    if (!telemetry || !telemetry.available || !telemetry.segments) return null;
+    const seg = telemetry.segments[idx];
+    if (!seg || !seg.samples || !seg.samples.length) return null;
+    const samples = seg.samples;
+    let lo = 0;
+    let hi = samples.length - 1;
+    if (t <= samples[0].t) return samples[0];
+    if (t >= samples[hi].t) return samples[hi];
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (samples[mid].t < t) lo = mid + 1;
+      else hi = mid;
+    }
+    const a = samples[Math.max(0, lo - 1)];
+    const b = samples[lo];
+    return t - a.t <= b.t - t ? a : b;
+  }
+
+  function updateHud() {
+    if (!hudEl) return;
+    if (!hudEnabled || !telemetry || !telemetry.available) {
+      hudEl.hidden = true;
+      return;
+    }
+    const master = masterVideo();
+    const idx = master && Number.isInteger(master._idx) ? master._idx : segmentIndex;
+    const t = master ? master.currentTime || 0 : 0;
+    const s = findTelemetrySample(t, idx);
+    if (!s) {
+      hudEl.hidden = true;
+      return;
+    }
+    hudEl.hidden = false;
+    const ap = s.ap || "NONE";
+    if (hudAp) {
+      hudAp.textContent = ap === "NONE" ? "MANUAL" : ap;
+      hudAp.className = "hud-ap" + (ap === "FSD" ? " on-fsd" : ap === "AUTOSTEER" ? " on-ap" : ap === "TACC" ? " on-tacc" : "");
+    }
+    if (hudWheel) {
+      const deg = Math.max(-140, Math.min(140, s.steer || 0));
+      hudWheel.style.transform = `rotate(${deg}deg)`;
+    }
+    if (hudAccelFill) {
+      const pct = Math.max(0, Math.min(100, (s.accel || 0) * 100));
+      hudAccelFill.style.height = `${pct}%`;
+    }
+    if (hudBrake) hudBrake.classList.toggle("on", !!s.brake);
+    if (hudSpeed) hudSpeed.textContent = Math.round(s.speed || 0);
+    if (hudGear) hudGear.textContent = s.gear || "P";
+    if (hudBlinkL) hudBlinkL.classList.toggle("on", !!s.bl);
+    if (hudBlinkR) hudBlinkR.classList.toggle("on", !!s.br);
+  }
+
+  async function loadTelemetry(event) {
+    telemetry = null;
+    if (hudEl) hudEl.hidden = true;
+    try {
+      const res = await fetch(`/api/telemetry/${encodeURIComponent(event.id)}`);
+      if (!res.ok) return;
+      telemetry = await res.json();
+      updateHud();
+    } catch (_) {
+      telemetry = null;
+    }
+  }
+
+  function syncHudButton() {
+    if (hudBtn) hudBtn.classList.toggle("active", hudEnabled);
   }
 
   function prefersCssOverlay() {
@@ -574,6 +658,7 @@
         if (masterVideo() === video && !seeking && !overlayOpen()) {
           seekBar.value = globalTime();
           updateTimeDisplay();
+          updateHud();
         }
       });
 
@@ -606,6 +691,7 @@
       if (fsSeekBar) fsSeekBar.max = duration;
       probePlaylist(master._files, gen);
     }
+    loadTelemetry(event);
 
     const activeCard = eventList.querySelector(".event-card.active");
     if (activeCard) activeCard.scrollIntoView({ block: "nearest" });
@@ -712,6 +798,16 @@
     frontFsBtn.addEventListener("click", fullscreenPreferredCamera);
   }
 
+  if (hudBtn) {
+    syncHudButton();
+    hudBtn.addEventListener("click", () => {
+      hudEnabled = !hudEnabled;
+      localStorage.setItem("teslacam-hud", hudEnabled ? "1" : "0");
+      syncHudButton();
+      updateHud();
+    });
+  }
+
   if (playerListBtn) {
     playerListBtn.addEventListener("click", showEventList);
   }
@@ -728,6 +824,7 @@
       if (!overlayOpen() || seeking) return;
       seekBar.value = globalTime();
       updateTimeDisplay();
+      updateHud();
     });
     fsVideo.addEventListener("ended", () => onSegmentEnded(fsVideo));
     fsVideo.addEventListener("click", togglePlay);
