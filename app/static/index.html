@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>TeslaCam Viewer</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.2.2" />
+  <link rel="stylesheet" href="/static/css/style.css?v=1.3.0" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F697;</text></svg>">
 </head>
 <body>
@@ -122,13 +122,16 @@
       <span id="fsTime" class="fs-time">0:00</span>
       <button type="button" id="fsCloseBtn" class="btn primary">Close</button>
     </div>
-    <video id="fsVideo" playsinline webkit-playsinline></video>
+    <div class="fs-stage">
+      <video id="fsVideo" class="active" playsinline webkit-playsinline></video>
+      <video id="fsStandby" class="standby" playsinline webkit-playsinline></video>
+    </div>
     <div id="fsHud" class="hud hud-fs" hidden></div>
     <div class="fs-seek">
       <input type="range" id="fsSeekBar" min="0" max="100" value="0" step="0.1" />
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=1.2.2"></script>
+  <script src="/static/js/app.js?v=1.3.0"></script>
 </body>
 </html>

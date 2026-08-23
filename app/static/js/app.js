@@ -23,8 +23,11 @@
   let overlayResumeAt = 0;
   let segmentDurations = [];
   let segmentIndex = 0;
+  let cameras = [];
+  let advancing = false;
   let playGen = 0;
   let seeking = false;
+  const PREFETCH_LEAD = 12;
 
   const $ = (sel) => document.querySelector(sel);
   const appEl = $("#app");
@@ -43,7 +46,8 @@
   const backToListBtn = $("#backToListBtn");
   const frontFsBtn = $("#frontFsBtn");
   const fsLayer = $("#fsLayer");
-  const fsVideo = $("#fsVideo");
+  let fsVideo = $("#fsVideo");
+  let fsStandby = $("#fsStandby");
   const fsLabel = $("#fsLabel");
   const fsCloseBtn = $("#fsCloseBtn");
   const playerListBtn = $("#playerListBtn");
@@ -91,7 +95,153 @@
   }
 
   function masterVideo() {
+    const c = cameras.find((x) => x.cam === "front") || cameras[0];
+    if (c) return c.active;
     return videos.find((v) => v._cam === "front") || videos[0];
+  }
+
+  function fileUrl(files, idx) {
+    if (!files || !files.length) return null;
+    return files[Math.min(Math.max(0, idx), files.length - 1)];
+  }
+
+  function srcMatches(video, url) {
+    if (!video || !url) return false;
+    const src = video.currentSrc || video.getAttribute("src") || "";
+    if (!src) return false;
+    if (src === url) return true;
+    const name = url.split("/").pop();
+    return !!(name && src.includes(name));
+  }
+
+  function setVideoSrc(video, url, idx) {
+    if (!video || !url) return false;
+    if (video._idx === idx && srcMatches(video, url)) return false;
+    video._idx = idx;
+    video.preload = "auto";
+    video.src = url;
+    return true;
+  }
+
+  function readyEnough(video, url, idx) {
+    return !!(video && video._idx === idx && srcMatches(video, url) && video.readyState >= 2);
+  }
+
+  function waitReady(video, minState = 2) {
+    return new Promise((resolve) => {
+      if (!video || video.readyState >= minState) {
+        resolve();
+        return;
+      }
+      const done = () => resolve();
+      video.addEventListener("loadeddata", done, { once: true });
+      video.addEventListener("canplay", done, { once: true });
+      video.addEventListener("error", done, { once: true });
+      setTimeout(done, 5000);
+    });
+  }
+
+  function makePlayerVideo(files, cam) {
+    const v = document.createElement("video");
+    v.preload = "auto";
+    v.playsInline = true;
+    v.setAttribute("playsinline", "");
+    v.setAttribute("webkit-playsinline", "");
+    v.muted = isMuted;
+    v._files = files;
+    v._idx = -1;
+    v._cam = cam;
+    v.addEventListener("timeupdate", onBufferedTimeUpdate);
+    v.addEventListener("ended", () => onSegmentEnded(v));
+    return v;
+  }
+
+  function syncVideoList() {
+    videos = cameras.map((c) => c.active);
+  }
+
+  function prefetchNext(idx) {
+    const next = idx + 1;
+    cameras.forEach((c) => {
+      if (next >= c.files.length) return;
+      setVideoSrc(c.standby, c.files[next], next);
+    });
+    if (overlayOpen() && fsStandby && overlaySrc) {
+      const files = overlaySrc._files || [];
+      if (next < files.length) setVideoSrc(fsStandby, files[next], next);
+    }
+  }
+
+  function maybePrefetch() {
+    const master = overlayOpen() ? fsVideo : masterVideo();
+    if (!master) return;
+    const dur = master.duration || segmentDurations[segmentIndex] || 60;
+    const remain = dur - (master.currentTime || 0);
+    if (remain <= PREFETCH_LEAD) prefetchNext(segmentIndex);
+  }
+
+  function maybeAutoAdvance(video) {
+    if (!isPlaying || advancing || seeking) return;
+    const master = overlayOpen() ? fsVideo : masterVideo();
+    if (video !== master) return;
+    const dur = video.duration;
+    if (!isFinite(dur) || dur <= 0) return;
+    if (dur - (video.currentTime || 0) > 0.12) return;
+    const files = master._files || [];
+    if (segmentIndex + 1 < files.length) advanceSegment(true);
+  }
+
+  function onBufferedTimeUpdate(ev) {
+    const video = ev.target;
+    const isActive = cameras.some((c) => c.active === video);
+    if (!isActive && video !== fsVideo) return;
+    if (masterVideo() === video && !seeking && !overlayOpen()) {
+      seekBar.value = globalTime();
+      updateTimeDisplay();
+      updateHud();
+    }
+    maybePrefetch();
+    maybeAutoAdvance(video);
+  }
+
+  function promoteStandby(c) {
+    c.active.pause();
+    c.active.classList.remove("active");
+    c.active.classList.add("standby");
+    c.standby.classList.remove("standby");
+    c.standby.classList.add("active");
+    const old = c.active;
+    c.active = c.standby;
+    c.standby = old;
+  }
+
+  function promoteFsStandby() {
+    if (!fsVideo || !fsStandby) return;
+    fsVideo.pause();
+    fsVideo.classList.remove("active");
+    fsVideo.classList.add("standby");
+    fsStandby.classList.remove("standby");
+    fsStandby.classList.add("active");
+    const old = fsVideo;
+    fsVideo = fsStandby;
+    fsStandby = old;
+  }
+
+  async function advanceSegment(play) {
+    if (advancing) return;
+    const master = masterVideo();
+    const files = (master && master._files) || [];
+    if (segmentIndex + 1 >= files.length) {
+      setPlaying(false);
+      return;
+    }
+    advancing = true;
+    try {
+      await applySegment(segmentIndex + 1, 0, play, playGen);
+      if (play) setPlaying(true);
+    } finally {
+      advancing = false;
+    }
   }
 
   function findTelemetrySample(t, idx) {
@@ -408,66 +558,65 @@
   }
 
   function waitMeta(video) {
-    return new Promise((resolve) => {
-      if (video.readyState >= 1) {
-        resolve();
-        return;
-      }
-      const on = () => resolve();
-      video.addEventListener("loadedmetadata", on, { once: true });
-      video.addEventListener("error", on, { once: true });
-    });
+    return waitReady(video, 1);
   }
 
-
   function loadAllSegments(idx) {
-    let changed = false;
-    videos.forEach((v) => {
-      const files = v._files || [];
-      if (!files.length) return;
-      const use = Math.min(idx, files.length - 1);
-      const url = files[use];
-      if (v._idx !== use || !(v.currentSrc || v.src || "").includes(url.split("/").pop())) {
-        v._idx = use;
-        v.src = url;
-        changed = true;
-      } else {
-        v._idx = use;
+    cameras.forEach((c) => {
+      const url = fileUrl(c.files, idx);
+      if (!url) return;
+      if (c.active._idx === idx && srcMatches(c.active, url)) {
+        c.active._idx = idx;
+        return;
       }
+      if (c.standby._idx === idx && srcMatches(c.standby, url) && c.standby.readyState >= 1) {
+        promoteStandby(c);
+        return;
+      }
+      setVideoSrc(c.active, url, idx);
     });
+    syncVideoList();
     segmentIndex = idx;
     if (overlayOpen() && overlaySrc) {
       const files = overlaySrc._files || [];
-      const use = Math.min(idx, Math.max(0, files.length - 1));
-      if (files[use]) fsVideo.src = files[use];
+      const url = fileUrl(files, idx);
+      if (url && fsStandby && srcMatches(fsStandby, url) && fsStandby.readyState >= 1) {
+        promoteFsStandby();
+      } else if (url && fsVideo && !srcMatches(fsVideo, url)) {
+        setVideoSrc(fsVideo, url, idx);
+      }
+      const cam = cameras.find((c) => c.cam === overlaySrc._cam);
+      if (cam) overlaySrc = cam.active;
     }
-    return changed;
   }
 
   async function applySegment(idx, offset, play, gen) {
+    if (gen !== playGen) return;
+    idx = Math.max(0, idx);
     loadAllSegments(idx);
-    const targets = videos.slice();
-    if (overlayOpen()) targets.push(fsVideo);
-    await Promise.all(targets.map(waitMeta));
+    const targets = cameras.map((c) => c.active);
+    if (overlayOpen() && fsVideo) targets.push(fsVideo);
+    await Promise.all(targets.map((v) => waitReady(v, 2)));
     if (gen !== playGen) return;
     targets.forEach((v) => {
       try {
-        if (Math.abs((v.currentTime || 0) - offset) > 0.15) v.currentTime = offset;
+        if (Math.abs((v.currentTime || 0) - offset) > 0.12) v.currentTime = offset;
       } catch (_) {}
+      v.muted = isMuted;
     });
     if (play) {
-      videos.forEach((v) => v.play().catch(() => {}));
-      if (overlayOpen()) fsVideo.play().catch(() => {});
+      cameras.forEach((c) => c.active.play().catch(() => {}));
+      if (overlayOpen() && fsVideo) fsVideo.play().catch(() => {});
     }
+    prefetchNext(idx);
   }
 
   function onSegmentEnded(video) {
-    const master = masterVideo();
-    if (video !== master && !(overlayOpen() && video === fsVideo)) return;
+    const master = overlayOpen() ? fsVideo : masterVideo();
+    if (video !== master) return;
     const files = (master && master._files) || [];
     if (segmentIndex + 1 < files.length) {
-      applySegment(segmentIndex + 1, 0, true, playGen);
-      setPlaying(true);
+      advanceSegment(true);
     } else {
       setPlaying(false);
     }
@@ -478,30 +627,50 @@
     const t = globalTime();
     fsVideo.pause();
     fsLayer.hidden = true;
-    fsVideo.removeAttribute("src");
-    fsVideo.load();
+    [fsVideo, fsStandby].forEach((v) => {
+      if (!v) return;
+      v.pause();
+      v.removeAttribute("src");
+      v._idx = -1;
+      try { v.load(); } catch (_) {}
+    });
     overlaySrc = null;
     overlayResumeAt = t;
     seekTo(t);
     if (isPlaying) {
-      videos.forEach((v) => v.play().catch(() => {}));
+      cameras.forEach((c) => c.active.play().catch(() => {}));
     }
   }
 
   function openOverlay(tile) {
-    const video = tile.querySelector("video");
+    const video = tile.querySelector("video.active") || tile.querySelector("video");
     if (!video || !fsLayer || !fsVideo) return;
     overlaySrc = video;
     overlayResumeAt = video.currentTime || 0;
+    fsVideo._files = video._files;
+    fsVideo._cam = video._cam;
+    if (fsStandby) {
+      fsStandby._files = video._files;
+      fsStandby._cam = video._cam;
+    }
     fsLabel.textContent = (tile.querySelector(".camera-label")?.textContent || "Camera").trim();
     fsVideo.muted = isMuted;
-    fsVideo.src = video.currentSrc || video.src;
+    fsVideo.classList.add("active");
+    fsVideo.classList.remove("standby");
+    if (fsStandby) {
+      fsStandby.classList.add("standby");
+      fsStandby.classList.remove("active");
+    }
+    setVideoSrc(fsVideo, video.currentSrc || video.src, video._idx >= 0 ? video._idx : segmentIndex);
     if (fsSeekBar) {
       fsSeekBar.max = totalDuration() || video.duration || 100;
       fsSeekBar.value = globalTime();
     }
     fsLayer.hidden = false;
-    videos.forEach((v) => v.pause());
+    cameras.forEach((c) => {
+      c.active.pause();
+      c.standby.pause();
+    });
 
     const start = () => {
       try {
@@ -509,6 +678,7 @@
       } catch (_) {}
       fsVideo.play().catch(() => {});
       setPlaying(true);
+      prefetchNext(segmentIndex);
     };
 
     if (fsVideo.readyState >= 1) start();
@@ -521,7 +691,7 @@
       return;
     }
 
-    const video = tile.querySelector("video");
+    const video = tile.querySelector("video.active") || tile.querySelector("video");
     const nativeEl = document.fullscreenElement || document.webkitFullscreenElement;
     if (nativeEl === tile || nativeEl === video) {
       exitNativeFs();
@@ -600,12 +770,16 @@
     cameraGrid.className = `camera-grid cams-${n} tesla${hasPillars ? " has-pillars" : " no-pillars"}`;
     cameraGrid.innerHTML = "";
 
-    videos.forEach((v) => {
-      v.pause();
-      v.removeAttribute("src");
-      v.load();
+    cameras.forEach((c) => {
+      [c.active, c.standby].forEach((v) => {
+        v.pause();
+        v.removeAttribute("src");
+        try { v.load(); } catch (_) {}
+      });
     });
+    cameras = [];
     videos = [];
+    advancing = false;
     setPlaying(false);
     duration = 0;
     segmentDurations = [];
@@ -634,35 +808,21 @@
         toggleTileFullscreen(tile);
       });
 
-      const video = document.createElement("video");
-      video.preload = "metadata";
-      video.playsInline = true;
-      video.setAttribute("playsinline", "");
-      video.setAttribute("webkit-playsinline", "");
-      video.muted = isMuted;
-      video._files = files;
-      video._idx = 0;
-      video._cam = name;
-      if (files[0]) video.src = files[0];
+      const active = makePlayerVideo(files, name);
+      active.className = "active";
+      const standby = makePlayerVideo(files, name);
+      standby.className = "standby";
+      if (files[0]) setVideoSrc(active, files[0], 0);
+      if (files[1]) setVideoSrc(standby, files[1], 1);
 
-      video.addEventListener("loadedmetadata", () => {
-        if (!segmentDurations.length && video.duration > duration) {
-          duration = video.duration;
+      active.addEventListener("loadedmetadata", () => {
+        if (!segmentDurations.length && active.duration > duration) {
+          duration = active.duration;
           seekBar.max = duration;
           if (fsSeekBar) fsSeekBar.max = duration;
           updateTimeDisplay();
         }
       });
-
-      video.addEventListener("timeupdate", () => {
-        if (masterVideo() === video && !seeking && !overlayOpen()) {
-          seekBar.value = globalTime();
-          updateTimeDisplay();
-          updateHud();
-        }
-      });
-
-      video.addEventListener("ended", () => onSegmentEnded(video));
 
       tile.addEventListener("pointerup", (ev) => {
         if (ev.target.closest(".cam-fs")) return;
@@ -675,12 +835,14 @@
         }
       });
 
-      tile.appendChild(video);
+      tile.appendChild(active);
+      tile.appendChild(standby);
       tile.appendChild(label);
       tile.appendChild(fsBtn);
       cameraGrid.appendChild(tile);
-      videos.push(video);
+      cameras.push({ cam: name, files, active, standby, tile });
     });
+    syncVideoList();
 
     const master = masterVideo();
     if (master && master._files && master._files.length) {
@@ -692,6 +854,7 @@
       probePlaylist(master._files, gen);
     }
     loadTelemetry(event);
+    prefetchNext(0);
 
     const activeCard = eventList.querySelector(".event-card.active");
     if (activeCard) activeCard.scrollIntoView({ block: "nearest" });
@@ -706,18 +869,24 @@
     if (overlayOpen()) {
       if (fsVideo.paused) {
         fsVideo.play().catch(() => {});
-        videos.forEach((v) => v.play().catch(() => {}));
+        cameras.forEach((c) => c.active.play().catch(() => {}));
         setPlaying(true);
       } else {
         fsVideo.pause();
-        videos.forEach((v) => v.pause());
+        cameras.forEach((c) => {
+          c.active.pause();
+          c.standby.pause();
+        });
         setPlaying(false);
       }
       return;
     }
-    if (!videos.length) return;
+    if (!cameras.length) return;
     if (isPlaying) {
-      videos.forEach((v) => v.pause());
+      cameras.forEach((c) => {
+        c.active.pause();
+        c.standby.pause();
+      });
       setPlaying(false);
     } else {
       const loc = locateSegment(globalTime());
@@ -728,8 +897,12 @@
 
   function toggleMute() {
     isMuted = !isMuted;
-    videos.forEach((v) => (v.muted = isMuted));
+    cameras.forEach((c) => {
+      c.active.muted = isMuted;
+      c.standby.muted = isMuted;
+    });
     if (fsVideo) fsVideo.muted = isMuted;
+    if (fsStandby) fsStandby.muted = isMuted;
     setMutedUi();
   }
 
@@ -819,16 +992,24 @@
   if (fsMuteBtn) fsMuteBtn.addEventListener("click", toggleMute);
   if (sidebarScrim) sidebarScrim.addEventListener("click", toggleSidebar);
 
-  if (fsVideo) {
-    fsVideo.addEventListener("timeupdate", () => {
-      if (!overlayOpen() || seeking) return;
+  function wireOverlayVideo(el) {
+    if (!el) return;
+    el.addEventListener("timeupdate", () => {
+      if (!overlayOpen() || seeking || el !== fsVideo) return;
       seekBar.value = globalTime();
       updateTimeDisplay();
       updateHud();
+      maybePrefetch();
+      maybeAutoAdvance(el);
     });
-    fsVideo.addEventListener("ended", () => onSegmentEnded(fsVideo));
-    fsVideo.addEventListener("click", togglePlay);
+    el.addEventListener("ended", () => onSegmentEnded(el));
+    el.addEventListener("click", togglePlay);
   }
+
+  wireOverlayVideo(fsVideo);
+  wireOverlayVideo(fsStandby);
+  if (fsVideo) fsVideo.classList.add("active");
+  if (fsStandby) fsStandby.classList.add("standby");
 
   loadMoreBtn.addEventListener("click", () => {
     fetchEvents(currentOffset, true);
