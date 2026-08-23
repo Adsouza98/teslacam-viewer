@@ -436,8 +436,8 @@ html, body {
 .hud-wheel-wrap {
   --wheel-fill: #ffffff;
   --wheel-stroke: #111111;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   flex-shrink: 0;
   transform-origin: 50% 50%;
   transition: transform 0.08s linear;
@@ -445,7 +445,7 @@ html, body {
 .hud-wheel-wrap.on-fsd {
   --wheel-fill: #1f6feb;
   --wheel-stroke: #ffffff;
-  filter: drop-shadow(0 0 5px rgba(31,111,235,0.75));
+  filter: drop-shadow(0 0 4px rgba(31,111,235,0.7));
 }
 .hud-wheel-icon {
   position: relative;
@@ -457,15 +457,17 @@ html, body {
   position: absolute;
   inset: 0;
 }
-.hud-wheel-fill {
-  background: var(--wheel-fill);
-  -webkit-mask: url(/static/img/wheel-fill.png?v=1.4.4) center / contain no-repeat;
-  mask: url(/static/img/wheel-fill.png?v=1.4.4) center / contain no-repeat;
-}
 .hud-wheel-stroke {
+  z-index: 1;
   background: var(--wheel-stroke);
-  -webkit-mask: url(/static/img/wheel-outline.png?v=1.4.4) center / contain no-repeat;
-  mask: url(/static/img/wheel-outline.png?v=1.4.4) center / contain no-repeat;
+  -webkit-mask: url(/static/img/wheel-outline.png?v=1.4.5) center / contain no-repeat;
+  mask: url(/static/img/wheel-outline.png?v=1.4.5) center / contain no-repeat;
+}
+.hud-wheel-fill {
+  z-index: 2;
+  background: var(--wheel-fill);
+  -webkit-mask: url(/static/img/wheel-fill.png?v=1.4.5) center / contain no-repeat;
+  mask: url(/static/img/wheel-fill.png?v=1.4.5) center / contain no-repeat;
 }
 .hud-blink {
   width: 0;
