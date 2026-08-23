@@ -28,11 +28,17 @@
   let playGen = 0;
   let seeking = false;
   let buffering = false;
-  let syncTimer = null;
+  let overlayShown = false;
+  let overlayTimer = null;
   let resumeTimer = null;
+  let syncTimer = null;
+  let resuming = false;
+  let stallSince = 0;
+  let frozenTicks = 0;
   const PREFETCH_LEAD = 12;
-  const SYNC_SLACK = 0.35;
-  const WATCH_MS = 250;
+  const SYNC_SLACK = 1.0;
+  const SHOW_BUFFER_MS = 500;
+  const WATCH_MS = 500;
 
   const $ = (sel) => document.querySelector(sel);
   const appEl = $("#app");
@@ -174,19 +180,30 @@
   function showBuffering(on) {
     buffering = !!on;
     const el = $("#bufferingOverlay");
-    if (el) el.hidden = !on;
     const fsEl = $("#fsBuffering");
-    if (fsEl) fsEl.hidden = !on;
+    if (!on) {
+      if (overlayTimer) {
+        clearTimeout(overlayTimer);
+        overlayTimer = null;
+      }
+      overlayShown = false;
+      if (el) el.hidden = true;
+      if (fsEl) fsEl.hidden = true;
+      return;
+    }
+    if (overlayShown || overlayTimer) return;
+    overlayTimer = setTimeout(() => {
+      overlayTimer = null;
+      if (!buffering) return;
+      overlayShown = true;
+      if (el) el.hidden = false;
+      if (fsEl) fsEl.hidden = false;
+    }, SHOW_BUFFER_MS);
   }
 
   function pauseLive() {
     liveVideos().forEach((v) => {
       try { v.pause(); } catch (_) {}
-    });
-    cameras.forEach((c) => {
-      if (c.standby) {
-        try { c.standby.pause(); } catch (_) {}
-      }
     });
   }
 
@@ -196,32 +213,43 @@
     const t = master.currentTime || 0;
     let max = 0;
     liveVideos().forEach((v) => {
-      if (v === master) return;
+      if (v === master || v.ended) return;
       const d = Math.abs((v.currentTime || 0) - t);
       if (d > max) max = d;
     });
     return max;
   }
 
-  function allReady(minState = 3) {
+  function allReady(minState = 2) {
     return liveVideos().every((v) => {
-      if (!v || v.error) return true;
-      if (v.ended) return true;
+      if (!v || v.error || v.ended) return true;
       return v.readyState >= minState;
     });
   }
 
+  function isNearEnd(v) {
+    if (!v) return false;
+    if (v.ended) return true;
+    const dur = v.duration;
+    return isFinite(dur) && dur > 0 && v.currentTime >= dur - 0.45;
+  }
+
   function anyFrozen() {
-    if (!isPlaying || overlayOpen()) return false;
+    if (!isPlaying || overlayOpen() || buffering || seeking || resuming) return false;
     const master = masterVideo();
-    if (!master || master.ended) return false;
+    if (!master || master.ended || isNearEnd(master)) return false;
     return cameras.some((c) => {
       const v = c.active;
       if (!v || v === master) return false;
-      if (v.ended && !master.ended) return true;
-      if (v.paused && isPlaying && !buffering && !seeking) return true;
-      return false;
+      if (isNearEnd(v)) return false;
+      return v.paused && (master.currentTime || 0) > 0.6;
     });
+  }
+
+  function isLiveVideo(v) {
+    if (!v) return false;
+    if (overlayOpen()) return v === fsVideo;
+    return cameras.some((c) => c.active === v);
   }
 
   function scheduleResume(delay) {
@@ -239,56 +267,66 @@
     }
     const master = clockVideo();
     if (!master) return;
+    resuming = true;
     const t = master.currentTime || 0;
     const targets = liveVideos();
     targets.forEach((v) => {
+      if (v.ended || isNearEnd(v)) return;
       try {
-        if (!v.ended && Math.abs((v.currentTime || 0) - t) > 0.12) v.currentTime = t;
+        if (Math.abs((v.currentTime || 0) - t) > 0.45) v.currentTime = t;
       } catch (_) {}
     });
-    await Promise.all(targets.map((v) => waitReady(v, 3)));
+    await Promise.all(targets.map((v) => waitReady(v, 2)));
+    resuming = false;
     if (!isPlaying || seeking) return;
-    if (!allReady(3)) {
+    if (!allReady(2)) {
       showBuffering(true);
-      scheduleResume(200);
+      scheduleResume(280);
       return;
     }
+    stallSince = 0;
+    frozenTicks = 0;
     showBuffering(false);
     await Promise.all(targets.map((v) => v.play().catch(() => {})));
   }
 
-  function onVideoWaiting() {
-    if (!isPlaying || seeking || advancing) return;
-    showBuffering(true);
-    pauseLive();
-    scheduleResume(120);
+  function onVideoWaiting(ev) {
+    if (!isPlaying || seeking || advancing || resuming) return;
+    const v = ev && ev.target;
+    if (v && !isLiveVideo(v)) return;
+    if (!stallSince) stallSince = Date.now();
   }
 
   function onVideoCanPlay() {
-    if (buffering && isPlaying && !seeking) scheduleResume(40);
+    stallSince = 0;
+    if (buffering && isPlaying && !seeking) scheduleResume(60);
   }
 
   function wireStallHandlers(v) {
     v.addEventListener("waiting", onVideoWaiting);
     v.addEventListener("stalled", onVideoWaiting);
-    v.addEventListener("suspend", () => {
-      if (isPlaying && v.readyState < 3 && !v.ended) onVideoWaiting();
-    });
     v.addEventListener("canplay", onVideoCanPlay);
-    v.addEventListener("canplaythrough", onVideoCanPlay);
-    v.addEventListener("error", onVideoWaiting);
   }
 
   function watchdogTick() {
-    if (!isPlaying || seeking || advancing || buffering) return;
+    if (!isPlaying || seeking || advancing || resuming) return;
     if (!cameras.length && !overlayOpen()) return;
     const master = clockVideo();
     if (!master) return;
-    if (maxDrift() > SYNC_SLACK || anyFrozen() || !allReady(2)) {
-      showBuffering(true);
-      pauseLive();
-      scheduleResume(50);
+
+    const drift = maxDrift();
+    const stalledLong = stallSince && Date.now() - stallSince > 400;
+    if (anyFrozen()) frozenTicks += 1;
+    else frozenTicks = 0;
+
+    const needsHold = drift > SYNC_SLACK || frozenTicks >= 2 || stalledLong;
+    if (!needsHold) {
+      if (buffering) scheduleResume(0);
+      return;
     }
+    showBuffering(true);
+    pauseLive();
+    scheduleResume(80);
   }
 
   function startWatchdog() {
@@ -305,6 +343,9 @@
       clearTimeout(resumeTimer);
       resumeTimer = null;
     }
+    stallSince = 0;
+    frozenTicks = 0;
+    resuming = false;
     showBuffering(false);
   }
 
@@ -748,44 +789,25 @@
     loadAllSegments(idx);
     const targets = cameras.map((c) => c.active);
     if (overlayOpen() && fsVideo) targets.push(fsVideo);
-    if (play) showBuffering(true);
-    await Promise.all(targets.map((v) => waitReady(v, 3)));
+    await Promise.all(targets.map((v) => waitReady(v, 2)));
     if (gen !== playGen) return;
     targets.forEach((v) => {
       try {
-        if (Math.abs((v.currentTime || 0) - offset) > 0.12) v.currentTime = offset;
+        if (Math.abs((v.currentTime || 0) - offset) > 0.2) v.currentTime = offset;
       } catch (_) {}
       v.muted = isMuted;
     });
-    await Promise.all(targets.map((v) => waitReady(v, 3)));
-    if (gen !== playGen) return;
     if (play) {
-      if (!targets.every((v) => v.ended || v.readyState >= 2 || v.error)) {
-        showBuffering(true);
-        startWatchdog();
-        scheduleResume(80);
-        prefetchNext(idx);
-        return;
-      }
       showBuffering(false);
       await Promise.all(targets.map((v) => v.play().catch(() => {})));
       startWatchdog();
-    } else {
-      showBuffering(false);
     }
     prefetchNext(idx);
   }
 
   function onSegmentEnded(video) {
     const master = overlayOpen() ? fsVideo : masterVideo();
-    if (video !== master) {
-      if (isPlaying && !advancing && !seeking && master && !master.ended) {
-        showBuffering(true);
-        pauseLive();
-        applySegment(segmentIndex, master.currentTime || 0, true, playGen);
-      }
-      return;
-    }
+    if (video !== master) return;
     const files = (master && master._files) || [];
     if (segmentIndex + 1 < files.length) {
       advanceSegment(true);
