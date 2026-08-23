@@ -40,6 +40,54 @@
   const SHOW_BUFFER_MS = 500;
   const WATCH_MS = 500;
 
+  const REASON_LABELS = {
+    user_interaction_dashcam_icon_tapped: "Saved from Dashcam icon",
+    user_interaction_dashcam_panel_save: "Saved from Dashcam panel",
+    user_interaction_dashcam_launcher_action_tapped: "Saved from Dashcam launcher",
+    user_interaction_honk: "Saved by horn",
+    sentry_aware_object_detection: "Sentry: object detected",
+    sentry_locked_handle_pulled: "Sentry: door handle pulled",
+  };
+  const CAMERA_LABELS = {
+    0: "Front",
+    1: "Fisheye",
+    2: "Narrow",
+    3: "Left repeater",
+    4: "Right repeater",
+    5: "Left pillar",
+    6: "Right pillar",
+    7: "Rear",
+    8: "Cabin",
+  };
+
+  function reasonLabel(reason) {
+    if (!reason) return "";
+    const key = String(reason);
+    if (REASON_LABELS[key]) return REASON_LABELS[key];
+    if (/^sentry_aware_accel/i.test(key)) return "Sentry: impact detected";
+    if (/^sentry_aware/i.test(key)) return "Sentry event";
+    if (/^user_interaction/i.test(key)) return "Manually saved";
+    return key.replace(/_/g, " ");
+  }
+
+  function cameraLabel(cam) {
+    if (cam === undefined || cam === null || cam === "") return "";
+    const n = Number(cam);
+    if (!Number.isNaN(n) && CAMERA_LABELS[n]) return CAMERA_LABELS[n];
+    return String(cam);
+  }
+
+  function addMetaChip(parent, kind, label, title) {
+    const span = document.createElement("span");
+    span.className = "event-chip";
+    if (title) span.title = title;
+    const em = document.createElement("em");
+    em.textContent = kind;
+    span.appendChild(em);
+    span.appendChild(document.createTextNode(label));
+    parent.appendChild(span);
+  }
+
   const $ = (sel) => document.querySelector(sel);
   const appEl = $("#app");
   const eventList = $("#eventList");
@@ -958,13 +1006,16 @@
     $("#eventDatetime").textContent = eventTitle(event);
 
     const metaEl = $("#eventMeta");
-    if (event.event) {
-      metaEl.style.display = "block";
-      const parts = [];
-      if (event.event.reason) parts.push(`Reason: ${event.event.reason}`);
-      if (event.event.camera) parts.push(`Trigger: ${event.event.camera}`);
-      if (event.event.city) parts.push(`${event.event.city}`);
-      metaEl.textContent = parts.join(" · ") || "Event metadata available";
+    metaEl.replaceChildren();
+    const ev = event.event;
+    const hasCam = ev && ev.camera !== undefined && ev.camera !== null && ev.camera !== "";
+    if (ev && (ev.reason || hasCam || ev.city)) {
+      const why = reasonLabel(ev.reason);
+      if (why) addMetaChip(metaEl, "Why", why, ev.reason || "");
+      const cam = cameraLabel(ev.camera);
+      if (cam) addMetaChip(metaEl, "Camera", cam, `Tesla camera id ${ev.camera}`);
+      if (ev.city) addMetaChip(metaEl, "Location", String(ev.city));
+      metaEl.style.display = "flex";
     } else {
       metaEl.style.display = "none";
     }

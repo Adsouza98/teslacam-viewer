@@ -460,14 +460,14 @@ html, body {
 .hud-wheel-stroke {
   z-index: 1;
   background: var(--wheel-stroke);
-  -webkit-mask: url(/static/img/wheel-outline.png?v=1.4.5) center / contain no-repeat;
-  mask: url(/static/img/wheel-outline.png?v=1.4.5) center / contain no-repeat;
+  -webkit-mask: url(/static/img/wheel-outline.png?v=1.4.6) center / contain no-repeat;
+  mask: url(/static/img/wheel-outline.png?v=1.4.6) center / contain no-repeat;
 }
 .hud-wheel-fill {
   z-index: 2;
   background: var(--wheel-fill);
-  -webkit-mask: url(/static/img/wheel-fill.png?v=1.4.5) center / contain no-repeat;
-  mask: url(/static/img/wheel-fill.png?v=1.4.5) center / contain no-repeat;
+  -webkit-mask: url(/static/img/wheel-fill.png?v=1.4.6) center / contain no-repeat;
+  mask: url(/static/img/wheel-fill.png?v=1.4.6) center / contain no-repeat;
 }
 .hud-blink {
   width: 0;
@@ -585,13 +585,35 @@ html, body {
 .cam-fs:hover,
 .cam-fs:focus-visible { background: rgba(88,166,255,0.92); color: #0d1117; }
 .event-meta {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: none;
+  padding: 0.15rem 0 0.05rem;
   font-size: 0.8rem;
   color: var(--text-muted);
   flex-shrink: 0;
+}
+.event-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.22rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+.event-chip em {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .fs-layer {
@@ -679,7 +701,6 @@ html, body {
   .player-list-btn[hidden] { display: none; }
   .player-list-btn:not([hidden]) { display: flex; }
   #app.event-open .controls { display: none; }
-  #app.event-open .event-meta { display: none !important; }
   #app.event-open .header { padding: 0.4rem 0.75rem; }
   .camera-grid.tesla,
   .camera-grid.cams-5,
