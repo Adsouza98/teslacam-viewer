@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>TeslaCam Viewer</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.3.0" />
+  <link rel="stylesheet" href="/static/css/style.css?v=1.3.1" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F697;</text></svg>">
 </head>
 <body>
@@ -68,6 +68,10 @@
 
           <div class="camera-stage">
             <div class="camera-grid" id="cameraGrid"></div>
+            <div id="bufferingOverlay" class="buffering-overlay" hidden>
+              <div class="buffering-spinner" aria-hidden="true"></div>
+              <div class="buffering-label">Buffering…</div>
+            </div>
             <div id="hud" class="hud" hidden>
               <div class="hud-ap" id="hudAp">—</div>
               <div class="hud-blink hud-blink-l" id="hudBlinkL"></div>
@@ -125,6 +129,10 @@
     <div class="fs-stage">
       <video id="fsVideo" class="active" playsinline webkit-playsinline></video>
       <video id="fsStandby" class="standby" playsinline webkit-playsinline></video>
+      <div id="fsBuffering" class="buffering-overlay" hidden>
+        <div class="buffering-spinner" aria-hidden="true"></div>
+        <div class="buffering-label">Buffering…</div>
+      </div>
     </div>
     <div id="fsHud" class="hud hud-fs" hidden></div>
     <div class="fs-seek">
@@ -132,6 +140,6 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=1.3.0"></script>
+  <script src="/static/js/app.js?v=1.3.1"></script>
 </body>
 </html>

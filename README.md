@@ -4,7 +4,7 @@ Lightweight, self-hosted web app for browsing TeslaUSB / TeslaCam archives.
 
 Play Saved, Sentry, and Recent clips with synchronized multi-camera playback. Runs in Docker, including on older NAS/homelab hardware.
 
-**Image:** [`ghcr.io/adsouza98/teslacam-viewer:1.3.0`](https://github.com/Adsouza98/teslacam-viewer/pkgs/container/teslacam-viewer)
+**Image:** [`ghcr.io/adsouza98/teslacam-viewer:1.3.1`](https://github.com/Adsouza98/teslacam-viewer/pkgs/container/teslacam-viewer)
 
 ## Features
 
@@ -12,6 +12,7 @@ Play Saved, Sentry, and Recent clips with synchronized multi-camera playback. Ru
 - Browse **Saved**, **Sentry**, and **Recent** clips (one card per event or day folder)
 - Sequential 1-minute TeslaCam files play as a single timeline per camera
 - Next-segment prefetch (double-buffer) so 1-minute clip boundaries don’t stutter
+- Multi-camera sync watchdog: if one angle stalls, all pause with a Buffering… overlay and resync
 - Driving HUD (FSD / Autosteer, steering wheel, accelerator, brake) from telemetry embedded in the MP4s — parsed locally, never uploaded
 - Filter by date range
 - Multi-camera synchronized playback (front / back / left / right / pillars)
@@ -27,7 +28,7 @@ docker run -d --name teslacam-viewer \
   -p 8000:8000 \
   -e TZ=UTC \
   -v /path/to/TeslaUSB:/media:ro \
-  ghcr.io/adsouza98/teslacam-viewer:1.3.0
+  ghcr.io/adsouza98/teslacam-viewer:1.3.1
 ```
 
 Or with Compose:
@@ -35,7 +36,7 @@ Or with Compose:
 ```yaml
 services:
   teslacam-viewer:
-    image: ghcr.io/adsouza98/teslacam-viewer:1.3.0
+    image: ghcr.io/adsouza98/teslacam-viewer:1.3.1
     container_name: teslacam-viewer
     environment:
       PUID: "1000"
