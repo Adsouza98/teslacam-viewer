@@ -16,9 +16,11 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
-from app.sei import extract_cached
+from pydantic_settings import BaseSettings
 from starlette.middleware.cors import CORSMiddleware
 import secrets
+
+from app.sei import extract_cached
 
 
 # ---------------------------------------------------------------------------
@@ -310,7 +312,7 @@ def scan_events() -> List[Dict[str, Any]]:
 app = FastAPI(
     title="TeslaCam Viewer",
     description="Lightweight viewer for TeslaUSB / TeslaCam archived clips",
-    version="1.2.0",
+    version="1.2.1",
 )
 
 app.add_middleware(
