@@ -434,23 +434,32 @@ html, body {
   gap: 0.45rem;
 }
 .hud-wheel-wrap {
-  width: 44px;
-  height: 44px;
+  --wheel-fill: #ffffff;
+  --wheel-stroke: #111111;
+  width: 46px;
+  height: 46px;
   flex-shrink: 0;
   transform-origin: 50% 50%;
   transition: transform 0.08s linear;
 }
+.hud-wheel-wrap.on-fsd {
+  --wheel-fill: #1f6feb;
+  --wheel-stroke: #ffffff;
+  filter: drop-shadow(0 0 5px rgba(31,111,235,0.75));
+}
 .hud-wheel-icon {
   width: 100%;
   height: 100%;
-  background: #ffffff;
-  -webkit-mask: url(/static/img/wheel.png?v=1.4.2) center / contain no-repeat;
-  mask: url(/static/img/wheel.png?v=1.4.2) center / contain no-repeat;
-  filter: drop-shadow(0 0 1px rgba(255,255,255,0.9));
+  display: block;
+  overflow: visible;
 }
-.hud-wheel-wrap.on-fsd .hud-wheel-icon {
-  background: #1f6feb;
-  filter: drop-shadow(0 0 5px rgba(31,111,235,0.85));
+.hud-wheel-body {
+  fill: var(--wheel-fill);
+  stroke: var(--wheel-stroke);
+  stroke-width: 2.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  paint-order: stroke fill;
 }
 .hud-blink {
   width: 0;

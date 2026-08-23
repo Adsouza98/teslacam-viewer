@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>TeslaCam Viewer</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.4.2" />
+  <link rel="stylesheet" href="/static/css/style.css?v=1.4.3" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F697;</text></svg>">
 </head>
 <body>
@@ -81,7 +81,15 @@
                 <div class="hud-steer">
                   <div class="hud-blink hud-blink-l" id="hudBlinkL"></div>
                   <div class="hud-wheel-wrap" id="hudWheel">
-                    <div class="hud-wheel-icon"></div>
+                    <svg class="hud-wheel-icon" viewBox="0 0 64 64" aria-hidden="true">
+                      <g class="hud-wheel-body">
+                        <path fill-rule="evenodd" d="M32 4.5a27.5 27.5 0 1 1 0 55a27.5 27.5 0 0 1 0-55zm0 7.8a19.7 19.7 0 1 0 0 39.4a19.7 19.7 0 0 0 0-39.4z"/>
+                        <circle cx="32" cy="32" r="8"/>
+                        <rect x="29.1" y="12.4" width="5.8" height="13.2" rx="1.6"/>
+                        <rect x="29.1" y="12.4" width="5.8" height="13.2" rx="1.6" transform="rotate(120 32 32)"/>
+                        <rect x="29.1" y="12.4" width="5.8" height="13.2" rx="1.6" transform="rotate(240 32 32)"/>
+                      </g>
+                    </svg>
                   </div>
                   <div class="hud-blink hud-blink-r" id="hudBlinkR"></div>
                 </div>
@@ -157,6 +165,6 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=1.4.2"></script>
+  <script src="/static/js/app.js?v=1.4.3"></script>
 </body>
 </html>
