@@ -104,30 +104,48 @@ def parse_event_folder(name: str) -> Optional[datetime]:
     try:
         return datetime.strptime(name, "%Y-%m-%d_%H-%M-%S")
     except ValueError:
+        pass
+    try:
+        return datetime.strptime(name, "%Y-%m-%d")
+    except ValueError:
         return None
 
 
-def find_cameras(event_dir: Path) -> Dict[str, str]:
-    """Return {camera_name: filename} for available .mp4 files in an event folder."""
-    cameras = {}
+def collect_segments(dir_path: Path) -> Dict[str, List[str]]:
+    """Collect ordered 1-minute clips per camera in a folder."""
+    segs: Dict[str, List[str]] = defaultdict(list)
     try:
-        files = list(event_dir.iterdir())
+        files = sorted(dir_path.iterdir(), key=lambda p: p.name)
     except OSError:
-        return cameras
+        return {}
     for f in files:
         if not f.is_file() or f.suffix.lower() != ".mp4":
+            continue
+        m = CLIP_FILE_RE.match(f.name)
+        if m:
+            segs[m.group(2).lower()].append(f.name)
             continue
         name = f.stem.lower()
         for cam in CAMERA_SUFFIXES:
             if name.endswith(f"-{cam}") or name == cam:
-                cameras[cam] = f.name
+                segs[cam].append(f.name)
                 break
-        else:
-            for cam in CAMERA_SUFFIXES:
-                if cam in name:
-                    cameras[cam] = f.name
-                    break
-    return cameras
+    return {cam: names for cam, names in segs.items() if names}
+
+
+def clip_range(segments: Dict[str, List[str]]) -> Tuple[Optional[datetime], Optional[datetime]]:
+    stamps: List[datetime] = []
+    for names in segments.values():
+        for name in names:
+            m = CLIP_FILE_RE.match(name)
+            if not m:
+                continue
+            dt = parse_event_folder(m.group(1))
+            if dt:
+                stamps.append(dt)
+    if not stamps:
+        return None, None
+    return min(stamps), max(stamps)
 
 
 def load_event_json(event_dir: Path) -> Optional[Dict[str, Any]]:
@@ -149,24 +167,29 @@ def find_thumb(event_dir: Path) -> Optional[str]:
     return None
 
 
-def _append_event(
+def _append_folder_event(
     events: List[Dict[str, Any]],
     seen: Set[Tuple[str, str]],
     root: Path,
     event_dir: Path,
     event_type: str,
     folder: str,
-    cameras: Dict[str, str],
 ) -> None:
-    if not cameras:
+    segments = collect_segments(event_dir)
+    if not segments:
         return
     key = (event_type, folder)
     if key in seen:
         return
-    dt = parse_event_folder(folder)
+
+    start, end = clip_range(segments)
+    dt = start or parse_event_folder(folder)
     if not dt:
         return
+
     seen.add(key)
+    cameras = {cam: files[0] for cam, files in segments.items()}
+    clip_count = max(len(files) for files in segments.values())
     event_meta = load_event_json(event_dir)
     events.append(
         {
@@ -174,8 +197,11 @@ def _append_event(
             "type": event_type.replace("Clips", ""),
             "folder": folder,
             "datetime": dt.isoformat(),
+            "datetime_end": end.isoformat() if end else None,
             "timestamp": int(dt.timestamp()),
             "cameras": cameras,
+            "segments": segments,
+            "clip_count": clip_count,
             "has_event_json": event_meta is not None,
             "event": event_meta,
             "thumb": find_thumb(event_dir),
@@ -184,22 +210,17 @@ def _append_event(
     )
 
 
-def scan_timestamp_files(
-    dir_path: Path,
+def scan_loose_by_day(
+    clips_dir: Path,
     event_type: str,
     root: Path,
     seen: Set[Tuple[str, str]],
     events: List[Dict[str, Any]],
 ) -> None:
-    """Group TeslaCam mp4s in a directory by timestamp prefix.
-
-    TeslaUSB RecentClips layout:
-      RecentClips/YYYY-MM-DD/YYYY-MM-DD_HH-MM-SS-front.mp4
-    or files directly in RecentClips/.
-    """
-    groups: Dict[str, Dict[str, str]] = defaultdict(dict)
+    """Group mp4s sitting directly in a clips dir into one event per calendar day."""
+    by_day: Dict[str, Dict[str, List[str]]] = defaultdict(lambda: defaultdict(list))
     try:
-        files = list(dir_path.iterdir())
+        files = sorted(clips_dir.iterdir(), key=lambda p: p.name)
     except OSError:
         return
     for f in files:
@@ -208,21 +229,46 @@ def scan_timestamp_files(
         m = CLIP_FILE_RE.match(f.name)
         if not m:
             continue
-        ts, cam = m.group(1), m.group(2).lower()
-        groups[ts][cam] = f.name
-    for ts, cameras in groups.items():
-        _append_event(events, seen, root, dir_path, event_type, ts, cameras)
+        day = m.group(1)[:10]
+        by_day[day][m.group(2).lower()].append(f.name)
+
+    for day, segs in by_day.items():
+        key = (event_type, day)
+        if key in seen:
+            continue
+        start, end = clip_range(segs)
+        dt = start or parse_event_folder(day)
+        if not dt:
+            continue
+        seen.add(key)
+        cameras = {cam: files[0] for cam, files in segs.items()}
+        events.append(
+            {
+                "id": f"{event_type}/{day}",
+                "type": event_type.replace("Clips", ""),
+                "folder": day,
+                "datetime": dt.isoformat(),
+                "datetime_end": end.isoformat() if end else None,
+                "timestamp": int(dt.timestamp()),
+                "cameras": cameras,
+                "segments": dict(segs),
+                "clip_count": max(len(files) for files in segs.values()),
+                "has_event_json": False,
+                "event": None,
+                "thumb": find_thumb(clips_dir),
+                "path": str(clips_dir.relative_to(root)),
+            }
+        )
 
 
 def scan_events() -> List[Dict[str, Any]]:
-    """Scan media root and return sorted list of events (newest first)."""
+    """Scan media root: one event per Saved/Sentry folder or Recent day folder."""
     root = get_media_root()
     events: List[Dict[str, Any]] = []
 
     if not root.exists():
         return events
 
-    # Support both /media/{Saved,Sentry,Recent}Clips and /media/TeslaCam/{...}
     candidates = [
         root / "SavedClips",
         root / "SentryClips",
@@ -238,7 +284,7 @@ def scan_events() -> List[Dict[str, Any]]:
         if not clips_dir.is_dir():
             continue
 
-        event_type = clips_dir.name  # SavedClips / SentryClips / RecentClips
+        event_type = clips_dir.name
 
         try:
             entries = list(clips_dir.iterdir())
@@ -248,15 +294,10 @@ def scan_events() -> List[Dict[str, Any]]:
         for entry in entries:
             if not entry.is_dir():
                 continue
-            if EVENT_FOLDER_RE.match(entry.name):
-                cameras = find_cameras(entry)
-                _append_event(events, seen, root, entry, event_type, entry.name, cameras)
-            elif DAY_FOLDER_RE.match(entry.name):
-                # RecentClips/YYYY-MM-DD/*.mp4 (TeslaUSB / car USB layout)
-                scan_timestamp_files(entry, event_type, root, seen, events)
+            if EVENT_FOLDER_RE.match(entry.name) or DAY_FOLDER_RE.match(entry.name):
+                _append_folder_event(events, seen, root, entry, event_type, entry.name)
 
-        # Files sitting directly in SavedClips/SentryClips/RecentClips
-        scan_timestamp_files(clips_dir, event_type, root, seen, events)
+        scan_loose_by_day(clips_dir, event_type, root, seen, events)
 
     events.sort(key=lambda e: e["timestamp"], reverse=True)
     return events
@@ -269,7 +310,7 @@ def scan_events() -> List[Dict[str, Any]]:
 app = FastAPI(
     title="TeslaCam Viewer",
     description="Lightweight viewer for TeslaUSB / TeslaCam archived clips",
-    version="1.1.5",
+    version="1.1.6",
 )
 
 app.add_middleware(

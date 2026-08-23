@@ -1,6 +1,6 @@
 /**
  * TeslaCam Viewer - Frontend
- * Lightweight multi-camera synchronized playback
+ * Folder-level events with sequential 1-minute clip playback
  */
 
 (() => {
@@ -21,6 +21,10 @@
   let lastTap = { time: 0, tile: null };
   let overlaySrc = null;
   let overlayResumeAt = 0;
+  let segmentDurations = [];
+  let segmentIndex = 0;
+  let playGen = 0;
+  let seeking = false;
 
   const $ = (sel) => document.querySelector(sel);
   const appEl = $("#app");
@@ -99,6 +103,41 @@
     });
   }
 
+  function formatShortTime(iso) {
+    return new Date(iso).toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function eventTitle(e) {
+    if (e.datetime_end && e.clip_count > 1) {
+      const start = new Date(e.datetime);
+      const end = new Date(e.datetime_end);
+      const sameDay = start.toDateString() === end.toDateString();
+      const day = start.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+      if (sameDay) {
+        return `${day} · ${formatShortTime(e.datetime)}–${formatShortTime(e.datetime_end)}`;
+      }
+      return `${formatDateTime(e.datetime)} – ${formatDateTime(e.datetime_end)}`;
+    }
+    return formatDateTime(e.datetime);
+  }
+
+  function cameraFiles(event, cam, filename) {
+    const segs = event.segments && event.segments[cam];
+    if (Array.isArray(segs) && segs.length) return segs;
+    return filename ? [filename] : [];
+  }
+
+  function mediaUrl(event, filename) {
+    return `/media/${event.path}/${filename}`;
+  }
+
   function renderEventList() {
     if (events.length === 0) {
       eventList.innerHTML = `<div style="padding:1.5rem;text-align:center;color:var(--text-muted)">No events found</div>`;
@@ -108,9 +147,14 @@
     eventList.innerHTML = events
       .map((e) => {
         const camCount = Object.keys(e.cameras).length;
+        const clips = e.clip_count || 1;
         const thumbUrl = e.thumb
           ? `/media/${e.path}/${e.thumb}`
           : `/api/thumb/${encodeURIComponent(e.id)}`;
+        const clipLabel =
+          clips > 1
+            ? `${clips} clips · ${camCount} camera${camCount !== 1 ? "s" : ""}`
+            : `${camCount} camera${camCount !== 1 ? "s" : ""}`;
 
         return `
           <div class="event-card ${activeEvent?.id === e.id ? "active" : ""}" data-id="${e.id}">
@@ -118,8 +162,8 @@
                  onerror="this.style.background='var(--bg-tertiary)';this.removeAttribute('src');" />
             <div class="event-details">
               <div class="event-type ${e.type.toLowerCase()}">${e.type}</div>
-              <div class="event-time">${formatDateTime(e.datetime)}</div>
-              <div class="event-cams">${camCount} camera${camCount !== 1 ? "s" : ""}</div>
+              <div class="event-time">${eventTitle(e)}</div>
+              <div class="event-cams">${clipLabel}</div>
             </div>
           </div>
         `;
@@ -182,17 +226,150 @@
     return fsLayer && !fsLayer.hidden;
   }
 
+  function totalDuration() {
+    if (segmentDurations.length) {
+      return segmentDurations.reduce((a, b) => a + (b || 0), 0);
+    }
+    return duration;
+  }
+
+  function prefixDuration(idx) {
+    let acc = 0;
+    for (let i = 0; i < idx && i < segmentDurations.length; i++) {
+      acc += segmentDurations[i] || 0;
+    }
+    return acc;
+  }
+
+  function globalTime() {
+    const src = overlayOpen() ? fsVideo : videos[0];
+    if (!src) return 0;
+    return prefixDuration(segmentIndex) + (src.currentTime || 0);
+  }
+
+  function locateSegment(time) {
+    const total = totalDuration();
+    const t = Math.max(0, Math.min(time, total || time));
+    if (!segmentDurations.length) return { idx: 0, offset: t };
+    let acc = 0;
+    for (let i = 0; i < segmentDurations.length; i++) {
+      const d = segmentDurations[i] || 0;
+      if (t < acc + d || i === segmentDurations.length - 1) {
+        const offset = Math.min(Math.max(0, t - acc), Math.max(0, d - 0.05));
+        return { idx: i, offset };
+      }
+      acc += d;
+    }
+    return { idx: 0, offset: 0 };
+  }
+
+  function probeDuration(url) {
+    return new Promise((resolve) => {
+      const v = document.createElement("video");
+      v.preload = "metadata";
+      const done = (val) => {
+        v.removeAttribute("src");
+        v.load();
+        resolve(val);
+      };
+      const timer = setTimeout(() => done(60), 8000);
+      v.onloadedmetadata = () => {
+        clearTimeout(timer);
+        done(isFinite(v.duration) && v.duration > 0 ? v.duration : 60);
+      };
+      v.onerror = () => {
+        clearTimeout(timer);
+        done(60);
+      };
+      v.src = url;
+    });
+  }
+
+  async function probePlaylist(urls, gen) {
+    const durs = await Promise.all(urls.map(probeDuration));
+    if (gen !== playGen) return;
+    segmentDurations = durs;
+    duration = durs.reduce((a, b) => a + b, 0);
+    seekBar.max = duration || 100;
+    if (fsSeekBar) fsSeekBar.max = duration || 100;
+    updateTimeDisplay();
+  }
+
+  function waitMeta(video) {
+    return new Promise((resolve) => {
+      if (video.readyState >= 1) {
+        resolve();
+        return;
+      }
+      const on = () => resolve();
+      video.addEventListener("loadedmetadata", on, { once: true });
+      video.addEventListener("error", on, { once: true });
+    });
+  }
+
+
+  function loadAllSegments(idx) {
+    let changed = false;
+    videos.forEach((v) => {
+      const files = v._files || [];
+      if (!files.length) return;
+      const use = Math.min(idx, files.length - 1);
+      const url = files[use];
+      if (v._idx !== use || !(v.currentSrc || v.src || "").includes(url.split("/").pop())) {
+        v._idx = use;
+        v.src = url;
+        changed = true;
+      } else {
+        v._idx = use;
+      }
+    });
+    segmentIndex = idx;
+    if (overlayOpen() && overlaySrc) {
+      const files = overlaySrc._files || [];
+      const use = Math.min(idx, Math.max(0, files.length - 1));
+      if (files[use]) fsVideo.src = files[use];
+    }
+    return changed;
+  }
+
+  async function applySegment(idx, offset, play, gen) {
+    loadAllSegments(idx);
+    const targets = videos.slice();
+    if (overlayOpen()) targets.push(fsVideo);
+    await Promise.all(targets.map(waitMeta));
+    if (gen !== playGen) return;
+    targets.forEach((v) => {
+      try {
+        if (Math.abs((v.currentTime || 0) - offset) > 0.15) v.currentTime = offset;
+      } catch (_) {}
+    });
+    if (play) {
+      videos.forEach((v) => v.play().catch(() => {}));
+      if (overlayOpen()) fsVideo.play().catch(() => {});
+    }
+  }
+
+  function onSegmentEnded(video) {
+    if (video !== videos[0] && !(overlayOpen() && video === fsVideo)) return;
+    const files = (videos[0] && videos[0]._files) || [];
+    if (segmentIndex + 1 < files.length) {
+      applySegment(segmentIndex + 1, 0, true, playGen);
+      setPlaying(true);
+    } else {
+      setPlaying(false);
+    }
+  }
+
   function closeOverlay() {
     if (!overlayOpen()) return;
-    const t = fsVideo.currentTime || overlayResumeAt;
+    const t = globalTime();
     fsVideo.pause();
     fsLayer.hidden = true;
     fsVideo.removeAttribute("src");
     fsVideo.load();
     overlaySrc = null;
-    videos.forEach((v) => {
-      if (Math.abs(v.currentTime - t) > 0.25) v.currentTime = t;
-    });
+    overlayResumeAt = t;
+    seekTo(t);
     if (isPlaying) {
       videos.forEach((v) => v.play().catch(() => {}));
     }
@@ -207,8 +384,8 @@
     fsVideo.muted = isMuted;
     fsVideo.src = video.currentSrc || video.src;
     if (fsSeekBar) {
-      fsSeekBar.max = duration || video.duration || 100;
-      fsSeekBar.value = overlayResumeAt;
+      fsSeekBar.max = totalDuration() || video.duration || 100;
+      fsSeekBar.value = globalTime();
     }
     fsLayer.hidden = false;
     videos.forEach((v) => v.pause());
@@ -273,6 +450,8 @@
 
   function selectEvent(event) {
     activeEvent = event;
+    playGen += 1;
+    const gen = playGen;
     setEventOpen(true);
     closeOverlay();
     exitNativeFs();
@@ -287,7 +466,7 @@
     const badge = $("#eventTypeBadge");
     badge.textContent = event.type;
     badge.className = `event-type-badge ${event.type.toLowerCase()}`;
-    $("#eventDatetime").textContent = formatDateTime(event.datetime);
+    $("#eventDatetime").textContent = eventTitle(event);
 
     const metaEl = $("#eventMeta");
     if (event.event) {
@@ -313,10 +492,13 @@
     videos = [];
     setPlaying(false);
     duration = 0;
+    segmentDurations = [];
+    segmentIndex = 0;
     seekBar.value = 0;
     timeDisplay.textContent = "0:00 / 0:00";
 
     cams.forEach(([name, filename]) => {
+      const files = cameraFiles(event, name, filename).map((f) => mediaUrl(event, f));
       const tile = document.createElement("div");
       tile.className = "camera-tile";
 
@@ -342,10 +524,12 @@
       video.setAttribute("playsinline", "");
       video.setAttribute("webkit-playsinline", "");
       video.muted = isMuted;
-      video.src = `/media/${event.path}/${filename}`;
+      video._files = files;
+      video._idx = 0;
+      if (files[0]) video.src = files[0];
 
       video.addEventListener("loadedmetadata", () => {
-        if (video.duration > duration) {
+        if (!segmentDurations.length && video.duration > duration) {
           duration = video.duration;
           seekBar.max = duration;
           if (fsSeekBar) fsSeekBar.max = duration;
@@ -355,14 +539,12 @@
 
       video.addEventListener("timeupdate", () => {
         if (videos[0] === video && !seeking && !overlayOpen()) {
-          seekBar.value = video.currentTime;
+          seekBar.value = globalTime();
           updateTimeDisplay();
         }
       });
 
-      video.addEventListener("ended", () => {
-        if (videos.every((v) => v.ended || v.paused)) setPlaying(false);
-      });
+      video.addEventListener("ended", () => onSegmentEnded(video));
 
       tile.addEventListener("pointerup", (ev) => {
         if (ev.target.closest(".cam-fs")) return;
@@ -382,6 +564,16 @@
       videos.push(video);
     });
 
+    const master = videos[0];
+    if (master && master._files && master._files.length) {
+      const guess = master._files.map(() => 60);
+      segmentDurations = guess;
+      duration = guess.reduce((a, b) => a + b, 0);
+      seekBar.max = duration;
+      if (fsSeekBar) fsSeekBar.max = duration;
+      probePlaylist(master._files, gen);
+    }
+
     const activeCard = eventList.querySelector(".event-card.active");
     if (activeCard) activeCard.scrollIntoView({ block: "nearest" });
   }
@@ -395,9 +587,11 @@
     if (overlayOpen()) {
       if (fsVideo.paused) {
         fsVideo.play().catch(() => {});
+        videos.forEach((v) => v.play().catch(() => {}));
         setPlaying(true);
       } else {
         fsVideo.pause();
+        videos.forEach((v) => v.pause());
         setPlaying(false);
       }
       return;
@@ -407,11 +601,8 @@
       videos.forEach((v) => v.pause());
       setPlaying(false);
     } else {
-      const t = videos[0].currentTime;
-      videos.forEach((v) => {
-        v.currentTime = t;
-        v.play().catch(() => {});
-      });
+      const loc = locateSegment(globalTime());
+      applySegment(loc.idx, loc.offset, true, playGen);
       setPlaying(true);
     }
   }
@@ -424,30 +615,25 @@
   }
 
   function seekTo(time) {
-    if (overlayOpen()) {
-      fsVideo.currentTime = time;
-    }
-    videos.forEach((v) => {
-      if (Math.abs(v.currentTime - time) > 0.3) v.currentTime = time;
-    });
+    const loc = locateSegment(time);
+    applySegment(loc.idx, loc.offset, isPlaying && !seeking, playGen);
     updateTimeDisplay();
   }
 
   function formatTime(sec) {
     if (!isFinite(sec)) return "0:00";
-    const m = Math.floor(sec / 60);
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
     const s = Math.floor(sec % 60);
+    if (h) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
     return `${m}:${s.toString().padStart(2, "0")}`;
   }
 
   function updateTimeDisplay() {
-    const cur = overlayOpen()
-      ? fsVideo.currentTime
-      : videos[0]
-        ? videos[0].currentTime
-        : 0;
-    timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(duration)}`;
-    if (fsTime) fsTime.textContent = `${formatTime(cur)} / ${formatTime(duration)}`;
+    const cur = globalTime();
+    const tot = totalDuration();
+    timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(tot)}`;
+    if (fsTime) fsTime.textContent = `${formatTime(cur)} / ${formatTime(tot)}`;
     if (fsSeekBar && overlayOpen() && !seeking) fsSeekBar.value = cur;
   }
 
@@ -507,10 +693,10 @@
   if (fsVideo) {
     fsVideo.addEventListener("timeupdate", () => {
       if (!overlayOpen() || seeking) return;
-      seekBar.value = fsVideo.currentTime;
+      seekBar.value = globalTime();
       updateTimeDisplay();
     });
-    fsVideo.addEventListener("ended", () => setPlaying(false));
+    fsVideo.addEventListener("ended", () => onSegmentEnded(fsVideo));
     fsVideo.addEventListener("click", togglePlay);
   }
 
@@ -521,7 +707,6 @@
   syncPlayBtn.addEventListener("click", togglePlay);
   syncMuteBtn.addEventListener("click", toggleMute);
 
-  let seeking = false;
   seekBar.addEventListener("pointerdown", () => (seeking = true));
   seekBar.addEventListener("input", () => {
     seekTo(parseFloat(seekBar.value));
@@ -548,11 +733,9 @@
       e.preventDefault();
       togglePlay();
     } else if (e.code === "ArrowRight") {
-      const cur = overlayOpen() ? fsVideo.currentTime : videos[0]?.currentTime || 0;
-      seekTo(Math.min(duration, cur + 5));
+      seekTo(Math.min(totalDuration(), globalTime() + 5));
     } else if (e.code === "ArrowLeft") {
-      const cur = overlayOpen() ? fsVideo.currentTime : videos[0]?.currentTime || 0;
-      seekTo(Math.max(0, cur - 5));
+      seekTo(Math.max(0, globalTime() - 5));
     } else if (e.code === "KeyM") {
       toggleMute();
     } else if (e.code === "Escape") {
