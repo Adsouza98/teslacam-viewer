@@ -35,6 +35,9 @@
   let resuming = false;
   let stallSince = 0;
   let frozenTicks = 0;
+  let triggerAt = null;
+  let triggerCam = "";
+  const TRIGGER_PAD = 5;
   const PREFETCH_LEAD = 12;
   const SYNC_SLACK = 1.0;
   const SHOW_BUFFER_MS = 500;
@@ -86,6 +89,94 @@
     span.appendChild(em);
     span.appendChild(document.createTextNode(label));
     parent.appendChild(span);
+  }
+
+  const CAMERA_IDS = {
+    0: "front",
+    1: "front",
+    2: "front",
+    3: "left_repeater",
+    4: "right_repeater",
+    5: "left_pillar",
+    6: "right_pillar",
+    7: "back",
+    8: "front",
+  };
+
+  function teslaStampMs(s) {
+    if (s == null || s === "") return null;
+    if (typeof s === "number" && isFinite(s)) return s > 1e12 ? s : s * 1000;
+    const m = String(s).match(/(\d{4})-(\d{2})-(\d{2})[T_ ](\d{2})[:\-](\d{2})[:\-](\d{2})/);
+    if (!m) return null;
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  }
+
+  function firstClipStampMs(event) {
+    let first = null;
+    Object.values(event.segments || {}).forEach((files) => {
+      (files || []).forEach((f) => {
+        const m = String(f).match(/(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})/);
+        if (!m) return;
+        const ms = teslaStampMs(m[1]);
+        if (ms != null && (first == null || ms < first)) first = ms;
+      });
+    });
+    return first != null ? first : teslaStampMs(event.datetime);
+  }
+
+  function cameraNameFromId(id) {
+    if (id === undefined || id === null || id === "") return "";
+    const n = Number(id);
+    if (!Number.isNaN(n) && CAMERA_IDS[n]) return CAMERA_IDS[n];
+    const s = String(id).toLowerCase().replace(/\s+/g, "_");
+    if (s === "rear") return "back";
+    return s;
+  }
+
+  function computeTriggerOffset(event) {
+    const ev = event && event.event;
+    if (!ev || !ev.reason) return null;
+    const trig = teslaStampMs(ev.timestamp) || teslaStampMs(event.folder) || teslaStampMs(event.datetime);
+    const start = firstClipStampMs(event);
+    if (trig == null || start == null) return null;
+    return (trig - start) / 1000;
+  }
+
+  function clampTrigger() {
+    if (triggerAt == null) return;
+    const tot = totalDuration();
+    if (tot > 0) triggerAt = Math.max(0, Math.min(triggerAt, tot));
+  }
+
+  function setTickPos(tickEl, barEl, time, total) {
+    if (!tickEl) return;
+    if (time == null || !barEl || total <= 0) {
+      tickEl.hidden = true;
+      return;
+    }
+    const t = Math.max(0, Math.min(time, total));
+    const pct = t / total;
+    const thumb = 22;
+    tickEl.style.left = `calc(${thumb / 2}px + (100% - ${thumb}px) * ${pct})`;
+    tickEl.hidden = false;
+  }
+
+  function updateEventTick() {
+    const tot = totalDuration();
+    setTickPos($("#eventTick"), seekBar, triggerAt, tot);
+    setTickPos($("#fsEventTick"), fsSeekBar, triggerAt, tot);
+  }
+
+  function updateTriggerHighlight() {
+    const t = globalTime();
+    const on = triggerAt != null && Math.abs(t - triggerAt) <= TRIGGER_PAD;
+    cameras.forEach((c) => {
+      c.tile.classList.toggle("trigger-hot", on && c.cam === triggerCam);
+    });
+    if (fsLayer) {
+      const fsOn = on && overlayOpen() && overlaySrc && overlaySrc._cam === triggerCam;
+      fsLayer.classList.toggle("trigger-hot", !!fsOn);
+    }
   }
 
   const $ = (sel) => document.querySelector(sel);
@@ -804,6 +895,8 @@
     duration = durs.reduce((a, b) => a + b, 0);
     seekBar.max = duration || 100;
     if (fsSeekBar) fsSeekBar.max = duration || 100;
+    clampTrigger();
+    updateEventTick();
     updateTimeDisplay();
   }
 
@@ -989,6 +1082,16 @@
     activeEvent = event;
     playGen += 1;
     const gen = playGen;
+    triggerAt = computeTriggerOffset(event);
+    triggerCam = cameraNameFromId(event.event && event.event.camera);
+    const tickEl = $("#eventTick");
+    if (tickEl) {
+      tickEl.title = event.event && event.event.reason
+        ? `${reasonLabel(event.event.reason)} · ${formatTime(Math.max(0, triggerAt || 0))}`
+        : "Event";
+    }
+    const fsTick = $("#fsEventTick");
+    if (fsTick && tickEl) fsTick.title = tickEl.title;
     setEventOpen(true);
     closeOverlay();
     exitNativeFs();
@@ -1113,6 +1216,15 @@
     }
     loadTelemetry(event);
     prefetchNext(0);
+    clampTrigger();
+    updateEventTick();
+    updateTriggerHighlight();
+
+    if (triggerAt != null) {
+      const startAt = Math.max(0, triggerAt - TRIGGER_PAD);
+      setPlaying(true);
+      applySegment(locateSegment(startAt).idx, locateSegment(startAt).offset, true, gen);
+    }
 
     const activeCard = eventList.querySelector(".event-card.active");
     if (activeCard) activeCard.scrollIntoView({ block: "nearest" });
@@ -1181,6 +1293,8 @@
     timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(tot)}`;
     if (fsTime) fsTime.textContent = `${formatTime(cur)} / ${formatTime(tot)}`;
     if (fsSeekBar && overlayOpen() && !seeking) fsSeekBar.value = cur;
+    updateEventTick();
+    updateTriggerHighlight();
   }
 
   document.querySelectorAll(".filter-btn").forEach((btn) => {
@@ -1309,6 +1423,8 @@
       exitNativeFs();
     }
   });
+
+  window.addEventListener("resize", updateEventTick);
 
   fetchEvents(0, false);
 })();

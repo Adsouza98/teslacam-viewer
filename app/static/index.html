@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>TeslaCam Viewer</title>
-  <link rel="stylesheet" href="/static/css/style.css?v=1.4.6" />
+  <link rel="stylesheet" href="/static/css/style.css?v=1.4.7" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F697;</text></svg>">
 </head>
 <body>
@@ -117,7 +117,10 @@
 
           <div class="player-transport">
             <div class="player-seek">
-              <input type="range" id="seekBar" min="0" max="100" value="0" step="0.1" />
+              <div class="seek-wrap">
+                <div id="eventTick" class="event-tick" hidden></div>
+                <input type="range" id="seekBar" min="0" max="100" value="0" step="0.1" />
+              </div>
             </div>
             <div class="player-buttons">
               <button id="syncPlayBtn" class="btn primary" title="Play / Pause all">&#x25B6; Play</button>
@@ -156,10 +159,13 @@
     </div>
     <div id="fsHud" class="hud hud-fs" hidden></div>
     <div class="fs-seek">
-      <input type="range" id="fsSeekBar" min="0" max="100" value="0" step="0.1" />
+      <div class="seek-wrap">
+        <div id="fsEventTick" class="event-tick" hidden></div>
+        <input type="range" id="fsSeekBar" min="0" max="100" value="0" step="0.1" />
+      </div>
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=1.4.6"></script>
+  <script src="/static/js/app.js?v=1.4.7"></script>
 </body>
 </html>
